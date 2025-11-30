@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2 } from 'lucide-react';
-import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument } from '../types';
+import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3 } from 'lucide-react';
+import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, ItineraryItem } from '../types';
 import { formatDate, compressImage } from '../utils';
 import { PhotoGallery } from './PhotoGallery';
 import { db } from '../firebaseConfig';
@@ -17,6 +17,9 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   const [isEditingPhotos, setIsEditingPhotos] = useState(false);
   const [editingActivity, setEditingActivity] = useState<{ dayIndex: number, activityId: string } | null>(null);
   
+  // Itinerary Management State
+  const [isManagingItinerary, setIsManagingItinerary] = useState(false);
+
   // Expenses Edit State
   const [isEditingExpenses, setIsEditingExpenses] = useState(false);
   const [newExpenseItem, setNewExpenseItem] = useState('');
@@ -167,6 +170,58 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
       return record.coverImage === photoUrl;
     }
     return index === 0;
+  };
+
+  // Itinerary Management Functions
+  const handleItineraryChange = (newItinerary: ItineraryItem[]) => {
+    onUpdate({ ...record, itinerary: newItinerary });
+  };
+
+  const handleUpdateActivity = (dayIndex: number, activityId: string, field: 'title' | 'type', value: string) => {
+    const newItinerary = [...record.itinerary];
+    const day = newItinerary[dayIndex];
+    const activityIndex = day.activities.findIndex(a => a.id === activityId);
+    if (activityIndex === -1) return;
+
+    // @ts-ignore
+    const updatedActivity = { ...day.activities[activityIndex], [field]: value };
+    day.activities[activityIndex] = updatedActivity;
+    
+    handleItineraryChange(newItinerary);
+  };
+
+  const handleMoveActivity = (dayIndex: number, activityIndex: number, direction: -1 | 1) => {
+    const newItinerary = [...record.itinerary];
+    const day = newItinerary[dayIndex];
+    const activities = [...day.activities];
+    
+    const targetIndex = activityIndex + direction;
+    if (targetIndex < 0 || targetIndex >= activities.length) return;
+
+    // Swap
+    [activities[activityIndex], activities[targetIndex]] = [activities[targetIndex], activities[activityIndex]];
+    day.activities = activities;
+
+    handleItineraryChange(newItinerary);
+  };
+
+  const handleAddActivity = (dayIndex: number) => {
+    const newItinerary = [...record.itinerary];
+    const newActivity: Activity = {
+      id: Date.now().toString() + Math.random().toString(),
+      type: 'spot',
+      title: '新行程',
+      reviews: []
+    };
+    newItinerary[dayIndex].activities.push(newActivity);
+    handleItineraryChange(newItinerary);
+  };
+
+  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
+    if (!window.confirm("確定刪除此行程？")) return;
+    const newItinerary = [...record.itinerary];
+    newItinerary[dayIndex].activities = newItinerary[dayIndex].activities.filter(a => a.id !== activityId);
+    handleItineraryChange(newItinerary);
   };
 
   // Review & Rating Handlers
@@ -332,9 +387,23 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
 
         {/* Itinerary Timeline */}
         <div>
-          <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center">
-            <Train className="mr-2 text-teal-600" /> 行程表
-          </h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-slate-800 flex items-center">
+              <Train className="mr-2 text-teal-600" /> 行程表
+            </h2>
+            <button
+              onClick={() => setIsManagingItinerary(!isManagingItinerary)}
+              className={`text-sm font-medium px-3 py-1.5 rounded-full transition flex items-center shadow-sm ${
+                isManagingItinerary 
+                ? 'bg-teal-100 text-teal-800 hover:bg-teal-200' 
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {isManagingItinerary ? <Check size={16} className="mr-1"/> : <Edit3 size={16} className="mr-1"/>}
+              {isManagingItinerary ? '完成' : '管理行程'}
+            </button>
+          </div>
+          
           <div className="relative border-l-2 border-teal-200 ml-3 space-y-8 pb-4">
             {record.itinerary.map((item, dayIndex) => (
               <div key={dayIndex} className="relative pl-8">
@@ -346,8 +415,10 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                 </h4>
                 
                 <div className="space-y-3">
-                   {item.activities.length === 0 && <p className="text-slate-400 text-sm">無行程</p>}
-                   {item.activities.map((activity) => (
+                   {item.activities.length === 0 && !isManagingItinerary && <p className="text-slate-400 text-sm">無行程</p>}
+                   
+                   {/* Normal View Mode */}
+                   {!isManagingItinerary && item.activities.map((activity) => (
                      <div 
                        key={activity.id}
                        onClick={() => setEditingActivity({ dayIndex, activityId: activity.id })}
@@ -404,6 +475,73 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                        )}
                      </div>
                    ))}
+
+                   {/* Management Edit Mode */}
+                   {isManagingItinerary && (
+                     <div className="space-y-2">
+                       {item.activities.map((activity, index) => (
+                         <div key={activity.id} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-2">
+                               {/* Type Toggle */}
+                               <button 
+                                  onClick={() => handleUpdateActivity(dayIndex, activity.id, 'type', activity.type === 'spot' ? 'food' : 'spot')}
+                                  className={`p-2 rounded-md transition ${activity.type === 'food' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'}`}
+                                  title="切換類型"
+                               >
+                                  {activity.type === 'food' ? <Utensils size={16}/> : <Camera size={16}/>}
+                               </button>
+                               
+                               {/* Title Input */}
+                               <input 
+                                  className="flex-1 border-slate-300 rounded px-2 py-1.5 text-sm focus:ring-teal-500 focus:border-teal-500 border"
+                                  value={activity.title}
+                                  onChange={(e) => handleUpdateActivity(dayIndex, activity.id, 'title', e.target.value)}
+                                  placeholder="行程名稱"
+                               />
+                            </div>
+                            
+                            {/* Actions Row */}
+                            <div className="flex justify-between items-center bg-white p-1.5 rounded border border-slate-100">
+                               <div className="flex gap-1">
+                                  <button 
+                                     onClick={() => handleMoveActivity(dayIndex, index, -1)} 
+                                     disabled={index === 0}
+                                     className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-teal-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                     title="上移"
+                                  >
+                                     <ArrowUp size={16} />
+                                  </button>
+                                  <button 
+                                     onClick={() => handleMoveActivity(dayIndex, index, 1)}
+                                     disabled={index === item.activities.length - 1}
+                                     className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-teal-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                     title="下移"
+                                  >
+                                     <ArrowDown size={16} />
+                                  </button>
+                               </div>
+                               <div className="flex items-center">
+                                  <span className="text-[10px] text-slate-300 mr-2 uppercase font-bold tracking-wider">排序</span>
+                                  <div className="h-4 w-px bg-slate-200 mx-2"></div>
+                                  <button 
+                                     onClick={() => handleDeleteActivity(dayIndex, activity.id)}
+                                     className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                     title="刪除"
+                                  >
+                                     <Trash2 size={16} />
+                                  </button>
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                       <button 
+                         onClick={() => handleAddActivity(dayIndex)} 
+                         className="w-full py-3 border-2 border-dashed border-slate-300 text-slate-400 rounded-lg flex items-center justify-center hover:bg-slate-50 hover:text-teal-600 hover:border-teal-300 transition"
+                       >
+                           <Plus size={16} className="mr-1"/> 新增行程
+                       </button>
+                     </div>
+                   )}
                 </div>
               </div>
             ))}
