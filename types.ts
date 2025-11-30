@@ -23,12 +23,22 @@ export interface ItineraryItem {
 
 export type Currency = 'TWD' | 'JPY' | 'USD' | 'KRW' | 'EUR';
 
+export type ExpenseCategory = 'transport' | 'accommodation' | 'food' | 'misc';
+
+export const EXPENSE_CATEGORIES: Record<ExpenseCategory, { label: string, color: string, icon: string }> = {
+  transport: { label: '交通', color: '#3b82f6', icon: '🚆' },      // Blue
+  accommodation: { label: '住宿', color: '#8b5cf6', icon: '🛏️' }, // Violet
+  food: { label: '餐食', color: '#f97316', icon: '🍴' },          // Orange
+  misc: { label: '雜項', color: '#64748b', icon: '📝' }           // Slate
+};
+
 export interface Expense {
   id: string;
   item: string;
   amount: number;
   currency: Currency;
   exchangeRate: number;
+  category: ExpenseCategory;
 }
 
 export interface GeneralThought {

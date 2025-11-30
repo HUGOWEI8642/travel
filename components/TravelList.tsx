@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { Plus, MapPin, Calendar, Users, Download, Upload, RefreshCw, Database, Trash2, Edit, ChevronDown, ChevronUp, Save, X } from 'lucide-react';
+import { Plus, MapPin, Calendar, Users, Download, Upload, RefreshCw, Database, Trash2, Edit, ChevronDown, ChevronUp, Save, X, LogOut } from 'lucide-react';
 import { TravelRecord, AppSettings } from '../types';
 import { formatDate } from '../utils';
 
@@ -15,6 +15,7 @@ interface TravelListProps {
   onDelete: (id: string) => void;
   appSettings: AppSettings;
   onUpdateAppSettings: (settings: AppSettings) => void;
+  onLogout?: () => void;
 }
 
 export const TravelList: React.FC<TravelListProps> = ({ 
@@ -27,7 +28,8 @@ export const TravelList: React.FC<TravelListProps> = ({
   onReset,
   onDelete,
   appSettings,
-  onUpdateAppSettings
+  onUpdateAppSettings,
+  onLogout
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -188,7 +190,7 @@ export const TravelList: React.FC<TravelListProps> = ({
         </button>
         
         {isSettingsOpen && (
-          <div className="animate-fade-in">
+          <div className="animate-fade-in space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <button 
                 onClick={onExport}
@@ -221,6 +223,17 @@ export const TravelList: React.FC<TravelListProps> = ({
                 匯入範例行程 (11月環島)
               </button>
             </div>
+
+            {onLogout && (
+              <button 
+                onClick={onLogout}
+                className="w-full flex items-center justify-center gap-2 bg-slate-800 text-white py-3 rounded-xl text-sm font-medium hover:bg-black transition mt-4"
+              >
+                <LogOut size={16} />
+                登出 (鎖定日誌)
+              </button>
+            )}
+
             <p className="text-center text-xs text-slate-300 mt-4">
               資料將同步至雲端 Firebase
             </p>

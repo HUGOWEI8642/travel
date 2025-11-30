@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, X, Upload, Calendar, MapPin, UserPlus, Utensils, Camera, DollarSign, MessageCircle } from 'lucide-react';
-import { TravelRecord, DEFAULT_MEMBERS, ItineraryItem, ActivityType, Activity, Currency, Expense, GeneralThought } from '../types';
+import { TravelRecord, DEFAULT_MEMBERS, ItineraryItem, ActivityType, Activity, Currency, Expense, GeneralThought, ExpenseCategory, EXPENSE_CATEGORIES } from '../types';
 import { generateDateRange, compressImage } from '../utils';
 import { db } from '../firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
@@ -43,6 +43,7 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCurrency, setExpenseCurrency] = useState<Currency>('TWD');
   const [exchangeRate, setExchangeRate] = useState<string>('1');
+  const [expenseCategory, setExpenseCategory] = useState<ExpenseCategory>('food');
 
   // Temporary state for adding a new thought
   const [newThoughtContent, setNewThoughtContent] = useState('');
@@ -166,7 +167,8 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
       item: expenseItem,
       amount: parseFloat(expenseAmount),
       currency: expenseCurrency,
-      exchangeRate: parseFloat(exchangeRate) || 1
+      exchangeRate: parseFloat(exchangeRate) || 1,
+      category: expenseCategory
     };
     
     setExpenses([...expenses, newExpense]);
@@ -232,8 +234,6 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
       };
 
       // 2. Sanitize data (Remove undefined fields to prevent Firestore errors)
-      // JSON.parse(JSON.stringify(...)) is a quick way to strip undefined values
-      // This is safe here because our TravelRecord only contains JSON-compatible types (strings, numbers, arrays, objects)
       const sanitizedData = JSON.parse(JSON.stringify(rawData));
 
       // If creating new record, we need to create it first to get an ID for photos
@@ -437,6 +437,17 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
                   className="w-full border-slate-300 rounded-lg text-sm border p-2 focus:ring-teal-500"
                 />
               </div>
+              <div>
+                 <select 
+                   value={expenseCategory}
+                   onChange={(e) => setExpenseCategory(e.target.value as ExpenseCategory)}
+                   className="w-full border-slate-300 rounded-lg text-sm border p-2 bg-white"
+                 >
+                   {Object.entries(EXPENSE_CATEGORIES).map(([key, { label, icon }]) => (
+                     <option key={key} value={key}>{icon} {label}</option>
+                   ))}
+                 </select>
+              </div>
               <div className="flex gap-2">
                  <select 
                    value={expenseCurrency} 
@@ -476,11 +487,16 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
               <div className="mt-4 space-y-2">
                 {expenses.map((exp) => (
                   <div key={exp.id} className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 text-sm">
-                    <div>
-                      <div className="font-medium text-slate-700">{exp.item}</div>
-                      <div className="text-xs text-slate-400">
-                        {exp.currency} {exp.amount.toLocaleString()} 
-                        {exp.currency !== 'TWD' && ` (匯率: ${exp.exchangeRate})`}
+                    <div className="flex items-start gap-2">
+                      <span className="text-lg bg-slate-100 p-1 rounded">
+                         {EXPENSE_CATEGORIES[exp.category || 'misc'].icon}
+                      </span>
+                      <div>
+                        <div className="font-medium text-slate-700">{exp.item}</div>
+                        <div className="text-xs text-slate-400">
+                          {exp.currency} {exp.amount.toLocaleString()} 
+                          {exp.currency !== 'TWD' && ` (匯率: ${exp.exchangeRate})`}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

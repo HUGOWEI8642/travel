@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TravelForm } from './components/TravelForm';
 import { TravelList } from './components/TravelList';
 import { TravelDetail } from './components/TravelDetail';
+import { LoginGate } from './components/LoginGate';
 import { TravelRecord, ViewMode, AppSettings } from './types';
 import { db } from './firebaseConfig';
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, setDoc, where, getDocs } from 'firebase/firestore';
@@ -87,14 +88,36 @@ const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
 };
 
 const App: React.FC = () => {
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [records, setRecords] = useState<TravelRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TravelRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [appSettings, setAppSettings] = useState<AppSettings>({ title: "我們的旅遊記錄", subtitle: "紀錄每一個感動的瞬間" });
 
+  // Check session storage on mount
+  useEffect(() => {
+    const sessionAuth = sessionStorage.getItem('travel_log_auth');
+    if (sessionAuth === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    sessionStorage.setItem('travel_log_auth', 'true');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('travel_log_auth');
+  };
+
   // 1. Real-time listener for Travel Records
   useEffect(() => {
+    if (!isAuthenticated) return; // Do not fetch data if not logged in
+
     try {
       const q = query(collection(db, 'travel_records'), orderBy('startDate', 'desc'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -121,10 +144,12 @@ const App: React.FC = () => {
       console.error("Error setting up listener:", err);
       setLoading(false);
     }
-  }, [selectedRecord?.id]);
+  }, [isAuthenticated, selectedRecord?.id]);
 
   // 2. Real-time listener for App Settings
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     try {
       const settingsDocRef = doc(db, 'app_settings', 'header');
       const unsubscribe = onSnapshot(settingsDocRef, (docSnap) => {
@@ -139,7 +164,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Settings listener error", e);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const handleUpdateAppSettings = async (newSettings: AppSettings) => {
     try {
@@ -282,6 +307,11 @@ const App: React.FC = () => {
     }
   };
 
+  // If not authenticated, show Login Gate
+  if (!isAuthenticated) {
+    return <LoginGate onLogin={handleLogin} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
@@ -310,6 +340,7 @@ const App: React.FC = () => {
           onDelete={handleDeleteRecord}
           appSettings={appSettings}
           onUpdateAppSettings={handleUpdateAppSettings}
+          onLogout={handleLogout}
         />
       )}
 
