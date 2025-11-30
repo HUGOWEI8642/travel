@@ -5,6 +5,7 @@ import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, Itine
 import { formatDate, compressImage } from '../utils';
 import { db } from '../firebaseConfig';
 import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { BufferedInput } from './BufferedInput';
 
 interface TravelDetailProps {
   record: TravelRecord;
@@ -642,10 +643,9 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                                >
                                  {activity.type === 'regret' ? <Ghost size={16} /> : activity.type === 'food' ? <Utensils size={16} /> : <Camera size={16} />}
                                </button>
-                               <input 
-                                 type="text"
+                               <BufferedInput 
                                  value={activity.title}
-                                 onChange={(e) => handleUpdateActivity(dayIndex, activity.id, 'title', e.target.value)}
+                                 onValueChange={(val) => handleUpdateActivity(dayIndex, activity.id, 'title', val)}
                                  className="flex-1 text-sm border-slate-300 rounded px-2 py-1"
                                />
                                <div className="flex gap-1">

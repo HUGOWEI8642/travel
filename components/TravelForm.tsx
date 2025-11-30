@@ -5,6 +5,7 @@ import { TravelRecord, DEFAULT_MEMBERS, ItineraryItem, ActivityType, Activity, C
 import { generateDateRange, compressImage } from '../utils';
 import { db } from '../firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
+import { BufferedInput } from './BufferedInput';
 
 interface TravelFormProps {
   initialData?: TravelRecord;
@@ -627,10 +628,9 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
                       </button>
                     </div>
                     
-                    <input 
-                      type="text"
+                    <BufferedInput 
                       value={newActivityInputs[idx] || ''}
-                      onChange={(e) => handleInputChange(idx, e.target.value)}
+                      onValueChange={(val) => handleInputChange(idx, val)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
