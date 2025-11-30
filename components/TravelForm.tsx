@@ -95,19 +95,16 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
     if (e.target.files) {
       setIsProcessingPhotos(true);
       const files = Array.from(e.target.files);
-      const processed: string[] = [];
       
       // Sequential processing
       for (const file of files) {
         try {
           const base64 = await compressImage(file);
-          processed.push(base64);
+          setNewPhotoFiles(prev => [...prev, base64]);
         } catch (error) {
           console.error("Error converting image", error);
         }
       }
-      
-      setNewPhotoFiles([...newPhotoFiles, ...processed]);
       setIsProcessingPhotos(false);
     }
   };

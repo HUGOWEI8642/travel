@@ -74,9 +74,15 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
           setUploadProgress(`正在處理 ${i + 1} / ${files.length}...`);
           
           try {
-            // 1. Compress
+            // 1. Compress (Now using optimized URL.createObjectURL)
             const base64 = await compressImage(files[i]);
             
+            // Check size safety (Firestore doc limit is 1MB, we aim for < 800KB)
+            if (base64.length > 900000) {
+               console.warn("File might be too large even after compression, skipping");
+               continue;
+            }
+
             // 2. Upload to separate document
             await addDoc(collection(db, 'travel_photos'), {
               recordId: record.id,
@@ -97,7 +103,9 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
           }
         }
         
-        if (successCount < files.length) {
+        if (successCount === 0) {
+           alert("上傳失敗。請確認照片格式，或嘗試單張上傳。");
+        } else if (successCount < files.length) {
           alert(`完成，但有 ${files.length - successCount} 張照片上傳失敗。`);
         }
       } catch (error) {

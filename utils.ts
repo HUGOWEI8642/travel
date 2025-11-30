@@ -27,48 +27,59 @@ export const formatDate = (dateStr: string): string => {
 };
 
 // Convert File to Base64 string but COMPRESSED
-// Optimized for mobile uploads to Firestore separate collection
-// Reduced quality to 0.5 to prevent Firestore 1MB limit issues on high-res mobile photos
-export const compressImage = (file: File, maxWidth = 800, quality = 0.5): Promise<string> => {
+// Optimized for mobile uploads: Uses URL.createObjectURL to avoid loading full file into memory
+export const compressImage = (file: File, maxWidth = 600, quality = 0.5): Promise<string> => {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+    // 1. Create a virtual URL pointing to the file (does not load into memory yet)
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    
+    img.onload = () => {
+      // Clean up the URL object immediately after loading
+      URL.revokeObjectURL(objectUrl);
 
-        // Calculate new dimensions
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
 
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Canvas context not available'));
-          return;
-        }
+      // Calculate new dimensions (Max width 600px for safety)
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
 
-        // Draw image to canvas
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Compress to JPEG with reduced quality
-        // This is the critical step for mobile stability
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context not available'));
+        return;
+      }
+
+      // Draw image to canvas
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Compress to JPEG
+      // This results in a much smaller string safe for Firestore
+      try {
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         resolve(dataUrl);
-      };
-      img.onerror = (err) => reject(err);
+      } catch (e) {
+        reject(e);
+      }
     };
-    reader.onerror = (err) => reject(err);
+
+    img.onerror = (err) => {
+      URL.revokeObjectURL(objectUrl);
+      reject(err);
+    };
+
+    // Trigger load
+    img.src = objectUrl;
   });
 };
 
+// Legacy helper kept for reference, but compressImage is preferred
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
