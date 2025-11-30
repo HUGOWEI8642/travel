@@ -230,6 +230,8 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
         itinerary,
         photos: photos, 
         coverImage: initialData?.coverImage, 
+        coverPosition: initialData?.coverPosition, // Preserve existing position
+        coverScale: initialData?.coverScale, // Preserve existing scale
         expenses,
         generalThoughts
       };

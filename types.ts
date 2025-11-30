@@ -59,6 +59,8 @@ export interface TravelRecord {
   itinerary: ItineraryItem[];
   photos: string[]; // Legacy: kept for backward compatibility or thumbnails
   coverImage?: string; // Specific cover image
+  coverPosition?: string; // CSS object-position value (e.g., "50% 20%")
+  coverScale?: number; // CSS transform scale value (e.g., 1.5)
   expenses: Expense[];
   generalThoughts: GeneralThought[];
 }

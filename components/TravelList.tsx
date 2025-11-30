@@ -120,7 +120,11 @@ export const TravelList: React.FC<TravelListProps> = ({
                 <img 
                   src={record.coverImage || record.photos[0] || 'https://picsum.photos/600/300'} 
                   alt={record.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-300 origin-center"
+                  style={{
+                    objectPosition: record.coverPosition || '50% 50%',
+                    transform: `scale(${record.coverScale || 1})`
+                  }}
                   onError={(e) => {
                      (e.target as HTMLImageElement).src = 'https://picsum.photos/600/300';
                   }}

@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3, MessageCircle, Send, PieChart, Pencil, ChevronLeft, ChevronRight, Ghost } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3, MessageCircle, Send, PieChart, Pencil, ChevronLeft, ChevronRight, Ghost, Move, ZoomIn, ZoomOut } from 'lucide-react';
 import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, ItineraryItem, GeneralThought, ExpenseCategory, EXPENSE_CATEGORIES } from '../types';
 import { formatDate, compressImage } from '../utils';
 import { db } from '../firebaseConfig';
@@ -15,6 +15,10 @@ interface TravelDetailProps {
 
 export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUpdate }) => {
   const [isEditingPhotos, setIsEditingPhotos] = useState(false);
+  const [isRepositioningCover, setIsRepositioningCover] = useState(false);
+  const [coverPos, setCoverPos] = useState(record.coverPosition || '50% 50%');
+  const [coverScale, setCoverScale] = useState(record.coverScale || 1);
+  
   const [editingActivity, setEditingActivity] = useState<{ dayIndex: number, activityId: string } | null>(null);
   
   // Itinerary Management State
@@ -42,12 +46,16 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   // Lightbox State
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  // Drag State for Cover
+  const coverRef = useRef<HTMLImageElement>(null);
+  const dragStart = useRef<{ x: number, y: number } | null>(null);
+  const currentPosRef = useRef<{ x: number, y: number }>({ x: 50, y: 50 });
+
   // Fetch photos from 'travel_photos' collection
   useEffect(() => {
     if (!record.id) return;
     
-    // REMOVED orderBy to prevent "Missing Index" errors on Firestore
-    // We will sort them on the client side instead
+    // Client-side sort approach
     const q = query(
       collection(db, 'travel_photos'), 
       where('recordId', '==', record.id)
@@ -60,7 +68,6 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
       setCloudPhotos(photos);
     }, (error) => {
       console.error("Photo fetch error:", error);
-      // alert("照片載入失敗：請檢查網路或資料庫權限");
     });
     return () => unsubscribe();
   }, [record.id]);
@@ -87,25 +94,111 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
     }
   }, [isEditingThoughts, record.members, newThoughtAuthor]);
 
+  // Initialize cover position and scale from record
+  useEffect(() => {
+    if (record.coverPosition) {
+      setCoverPos(record.coverPosition);
+    }
+    if (record.coverScale) {
+      setCoverScale(record.coverScale);
+    }
+  }, [record.coverPosition, record.coverScale]);
+
+  // -- COVER DRAG LOGIC --
+  const startDrag = (clientX: number, clientY: number) => {
+    if (!isRepositioningCover) return;
+    dragStart.current = { x: clientX, y: clientY };
+    
+    // Parse current '50% 50%' string to numbers
+    const parts = coverPos.split(' ');
+    const x = parseFloat(parts[0]) || 50;
+    const y = parseFloat(parts[1]) || 50;
+    currentPosRef.current = { x, y };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    startDrag(e.clientX, e.clientY);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startDrag(e.touches[0].clientX, e.touches[0].clientY);
+  };
+
+  const moveDrag = (clientX: number, clientY: number) => {
+    if (!isRepositioningCover || !dragStart.current || !coverRef.current) return;
+
+    const deltaX = dragStart.current.x - clientX;
+    const deltaY = dragStart.current.y - clientY;
+    
+    const rect = coverRef.current.parentElement?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Convert pixel delta to percentage delta
+    // Sensitivity factor: 0.2
+    const percentX = (deltaX / rect.width) * 100 * 0.5;
+    const percentY = (deltaY / rect.height) * 100 * 0.5;
+
+    let newX = currentPosRef.current.x + percentX;
+    let newY = currentPosRef.current.y + percentY;
+
+    // Clamp between 0 and 100
+    newX = Math.max(0, Math.min(100, newX));
+    newY = Math.max(0, Math.min(100, newY));
+
+    const newPosString = `${newX.toFixed(1)}% ${newY.toFixed(1)}%`;
+    setCoverPos(newPosString);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (e.buttons === 1) moveDrag(e.clientX, e.clientY);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+  };
+
+  const endDrag = () => {
+    dragStart.current = null;
+    // Update ref to current state so next drag starts from here
+    const parts = coverPos.split(' ');
+    const x = parseFloat(parts[0]) || 50;
+    const y = parseFloat(parts[1]) || 50;
+    currentPosRef.current = { x, y };
+  };
+
+  const handleSaveCoverPosition = () => {
+    onUpdate({ ...record, coverPosition: coverPos, coverScale: coverScale });
+    setIsRepositioningCover(false);
+  };
+
+  const handleCancelCoverPosition = () => {
+    setCoverPos(record.coverPosition || '50% 50%');
+    setCoverScale(record.coverScale || 1);
+    setIsRepositioningCover(false);
+  };
+  // -- END COVER DRAG LOGIC --
+
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setIsUploading(true);
       const files = Array.from(e.target.files);
       let successCount = 0;
+      let errorCount = 0;
       
       try {
         // SEQUENTIAL UPLOAD: Process one by one to avoid mobile memory crash
         for (let i = 0; i < files.length; i++) {
-          setUploadProgress(`正在處理 ${i + 1} / ${files.length}...`);
+          setUploadProgress(`正在上傳 ${i + 1} / ${files.length}...`);
           
           try {
             // 1. Compress (Now using optimized URL.createObjectURL)
             const base64 = await compressImage(files[i]);
             
-            // Check size safety (Firestore doc limit is 1MB, we aim for < 800KB)
+            // Check size safety (Firestore doc limit is 1MB)
             if (base64.length > 900000) {
-               console.warn("File might be too large even after compression, skipping");
-               continue;
+               console.warn("File might be too large, trying stronger compression");
+               // Optional: could try recursing with lower quality
             }
 
             // 2. Upload to separate document
@@ -124,21 +217,19 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
 
           } catch (itemError) {
             console.error(`Failed to upload file ${i+1}`, itemError);
-            alert(`第 ${i+1} 張照片上傳失敗，可能是檔案損毀或網路不穩。`);
+            errorCount++;
           }
         }
         
-        if (successCount === 0) {
-           // Alert only if total failure
-           // alert("上傳失敗。請確認照片格式，或嘗試單張上傳。");
-        } 
+        if (errorCount > 0) {
+           alert(`${errorCount} 張照片上傳失敗。這通常是因為照片檔案過大或網路不穩定。建議分批上傳。`);
+        }
       } catch (error) {
         console.error("Critical upload error", error);
-        alert("照片上傳發生嚴重錯誤，請檢查網路連線");
+        alert("照片上傳發生錯誤，請檢查網路連線");
       } finally {
         setIsUploading(false);
         setUploadProgress('');
-        // Clear input value to allow re-uploading same files if needed
         e.target.value = '';
       }
     }
@@ -158,10 +249,8 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   };
 
   const handleDeletePhoto = async (indexToDelete: number) => {
-    // 1. Basic confirmation
     if (!window.confirm("確定要刪除這張照片嗎？")) return;
 
-    // 2. Password protection
     const password = window.prompt("請輸入管理密碼以確認刪除：");
     if (password !== "0329") {
       alert("密碼錯誤，取消刪除。");
@@ -169,13 +258,10 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
     }
 
     try {
-      // Determine if it's a legacy photo or cloud photo
       if (indexToDelete < legacyPhotos.length) {
-        // It's a legacy photo inside the record array
         const updatedPhotos = record.photos.filter((_, index) => index !== indexToDelete);
         onUpdate({ ...record, photos: updatedPhotos });
       } else {
-        // It's a cloud photo
         const cloudIndex = indexToDelete - legacyPhotos.length;
         const photoDoc = cloudPhotos[cloudIndex];
         if (photoDoc) {
@@ -194,7 +280,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   };
 
   const handleResetCover = () => {
-    onUpdate({ ...record, coverImage: undefined });
+    onUpdate({ ...record, coverImage: undefined, coverPosition: '50% 50%', coverScale: 1 });
   };
 
   const isCurrentCover = (photoUrl: string, index: number) => {
@@ -446,12 +532,27 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   return (
     <div className="min-h-screen bg-white pb-20 animate-fade-in relative">
       {/* Header Image / Cover */}
-      <div className="relative h-64 md:h-80 w-full overflow-hidden group bg-slate-200">
+      <div 
+        className={`relative h-64 md:h-80 w-full overflow-hidden group bg-slate-200 ${isRepositioningCover ? 'cursor-move ring-4 ring-teal-500' : ''}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={endDrag}
+        onMouseLeave={endDrag}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={endDrag}
+      >
         {displayCover ? (
           <img 
+            ref={coverRef}
             src={displayCover} 
             alt={record.title}
-            className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+            className="w-full h-full object-cover select-none transition-transform duration-300 origin-center"
+            style={{ 
+              objectPosition: coverPos,
+              transform: `scale(${coverScale})`
+            }}
+            draggable={false}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-slate-400 flex-col">
@@ -460,55 +561,118 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
           </div>
         )}
         
-        {/* Cover Overlay Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 pointer-events-none">
-          <div className="flex items-center space-x-2 mb-2">
-            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${record.isInternational ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'}`}>
-              {record.isInternational ? '國外 International' : '國內 Domestic'}
-            </span>
-          </div>
-          <h1 className="text-3xl font-bold text-white drop-shadow-md">{record.title}</h1>
-          <div className="flex items-center text-white/90 mt-1 text-sm">
-            <MapPin size={16} className="mr-1" />
-            {record.location}
-          </div>
-        </div>
+        {/* Repositioning Overlay UI */}
+        {isRepositioningCover && (
+          <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+             {/* Hint */}
+             <div className="absolute top-4 bg-black/60 text-white px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2">
+                <Move size={20} className="animate-pulse"/>
+                <span className="font-bold">拖曳移動</span>
+             </div>
 
-        <button 
-          onClick={onBack}
-          className="absolute top-4 left-4 bg-black/30 hover:bg-black/50 backdrop-blur-md text-white p-2 rounded-full transition-all z-20"
-        >
-          <ArrowLeft size={24} />
-        </button>
+             {/* Scale Slider */}
+             <div className="absolute bottom-20 left-4 right-4 pointer-events-auto bg-black/60 p-4 rounded-xl backdrop-blur-md">
+                <div className="flex items-center gap-4 text-white">
+                   <ZoomOut size={20} />
+                   <input 
+                     type="range" 
+                     min="0.5" 
+                     max="3" 
+                     step="0.1"
+                     value={coverScale}
+                     onChange={(e) => setCoverScale(parseFloat(e.target.value))}
+                     className="flex-1 accent-teal-500 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                   />
+                   <ZoomIn size={20} />
+                   <span className="w-8 text-right font-mono">{coverScale.toFixed(1)}x</span>
+                </div>
+             </div>
+             
+             {/* Action Buttons */}
+             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 pointer-events-auto px-4">
+                <button 
+                  onClick={handleCancelCoverPosition}
+                  className="bg-slate-500 text-white px-6 py-2 rounded-full shadow-lg font-bold"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleSaveCoverPosition}
+                  className="bg-teal-600 text-white px-6 py-2 rounded-full shadow-lg font-bold"
+                >
+                  儲存設定
+                </button>
+             </div>
+          </div>
+        )}
+        
+        {/* Cover Overlay Gradient (Hide when repositioning) */}
+        {!isRepositioningCover && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 pointer-events-none">
+            <div className="flex items-center space-x-2 mb-2">
+              <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${record.isInternational ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'}`}>
+                {record.isInternational ? '國外 International' : '國內 Domestic'}
+              </span>
+            </div>
+            <h1 className="text-3xl font-bold text-white drop-shadow-md">{record.title}</h1>
+            <div className="flex items-center text-white/90 mt-1 text-sm">
+              <MapPin size={16} className="mr-1" />
+              {record.location}
+            </div>
+          </div>
+        )}
+
+        {!isRepositioningCover && (
+          <button 
+            onClick={onBack}
+            className="absolute top-4 left-4 bg-black/30 hover:bg-black/50 backdrop-blur-md text-white p-2 rounded-full transition-all z-20"
+          >
+            <ArrowLeft size={24} />
+          </button>
+        )}
 
         {/* Edit Toggle Button (Top) */}
-        <button
-          onClick={() => setIsEditingPhotos(!isEditingPhotos)}
-          className={`absolute top-4 right-4 backdrop-blur-md p-2 rounded-full transition-all shadow-lg flex items-center gap-2 px-3 z-20 ${
-            isEditingPhotos 
-              ? 'bg-teal-500 text-white hover:bg-teal-600' 
-              : 'bg-black/30 text-white hover:bg-black/50'
-          }`}
-        >
-          {isEditingPhotos ? <Check size={18} /> : <Settings size={18} />}
-          <span className="text-sm font-medium">
-            {isEditingPhotos ? '完成' : '編輯封面與相簿'}
-          </span>
-        </button>
+        {!isRepositioningCover && (
+          <button
+            onClick={() => setIsEditingPhotos(!isEditingPhotos)}
+            className={`absolute top-4 right-4 backdrop-blur-md p-2 rounded-full transition-all shadow-lg flex items-center gap-2 px-3 z-20 ${
+              isEditingPhotos 
+                ? 'bg-teal-500 text-white hover:bg-teal-600' 
+                : 'bg-black/30 text-white hover:bg-black/50'
+            }`}
+          >
+            {isEditingPhotos ? <Check size={18} /> : <Settings size={18} />}
+            <span className="text-sm font-medium">
+              {isEditingPhotos ? '完成' : '編輯封面與相簿'}
+            </span>
+          </button>
+        )}
 
         {/* Cover Edit Controls (Visible when editing) */}
-        {isEditingPhotos && (
-          <div className="absolute inset-0 bg-black/40 z-10 flex items-center justify-center gap-3 backdrop-blur-[2px]">
-            <label className="bg-white text-slate-800 px-4 py-2 rounded-full font-bold shadow-lg cursor-pointer hover:bg-slate-100 transition flex items-center transform hover:scale-105 active:scale-95">
-              <Upload size={18} className="mr-2" />
-              上傳封面
-              <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
-            </label>
+        {isEditingPhotos && !isRepositioningCover && (
+          <div className="absolute inset-0 bg-black/40 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-[2px]">
+            <div className="flex gap-3 flex-wrap justify-center">
+              <label className="bg-white text-slate-800 px-4 py-2 rounded-full font-bold shadow-lg cursor-pointer hover:bg-slate-100 transition flex items-center transform hover:scale-105 active:scale-95">
+                <Upload size={18} className="mr-2" />
+                上傳封面
+                <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+              </label>
+
+              {displayCover && (
+                <button 
+                  onClick={() => setIsRepositioningCover(true)}
+                  className="bg-teal-500 text-white px-4 py-2 rounded-full font-bold shadow-lg hover:bg-teal-600 transition flex items-center transform hover:scale-105 active:scale-95"
+                >
+                  <Move size={18} className="mr-2" />
+                  調整位置/大小
+                </button>
+              )}
+            </div>
             
             {isCustomCover && (
               <button 
                 onClick={handleResetCover}
-                className="bg-slate-800/80 text-white px-4 py-2 rounded-full font-bold shadow-lg hover:bg-black transition flex items-center backdrop-blur-md border border-white/20"
+                className="bg-slate-800/80 text-white px-4 py-2 rounded-full font-bold shadow-lg hover:bg-black transition flex items-center backdrop-blur-md border border-white/20 mt-2"
               >
                 <RefreshCcw size={18} className="mr-2" />
                 恢復預設
