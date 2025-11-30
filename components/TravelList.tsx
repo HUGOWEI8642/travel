@@ -49,6 +49,7 @@ export const TravelList: React.FC<TravelListProps> = ({
           <div className="text-center py-20 text-slate-400">
             <div className="mb-4">🧳</div>
             <p>目前沒有紀錄，點擊 + 新增你的第一趟旅程！</p>
+            <p className="text-xs mt-2">或在下方匯入範例資料</p>
           </div>
         ) : (
           records.map(record => (
@@ -124,14 +125,14 @@ export const TravelList: React.FC<TravelListProps> = ({
           
           <button 
             onClick={onReset}
-            className="col-span-2 flex items-center justify-center gap-2 bg-slate-100 text-slate-400 py-2 rounded-xl text-xs hover:bg-red-50 hover:text-red-500 transition mt-2"
+            className="col-span-2 flex items-center justify-center gap-2 bg-slate-100 text-slate-400 py-2 rounded-xl text-xs hover:bg-teal-50 hover:text-teal-600 transition mt-2 font-bold"
           >
             <RefreshCw size={12} />
-            重置範例資料
+            匯入範例行程 (11月環島)
           </button>
         </div>
         <p className="text-center text-xs text-slate-300 mt-4">
-          資料儲存於本機瀏覽器中
+          資料將同步至雲端 Firebase
         </p>
       </div>
     </div>

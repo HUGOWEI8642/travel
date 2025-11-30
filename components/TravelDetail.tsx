@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { TravelRecord, Activity, Review, Expense, Currency } from '../types';
-import { formatDate } from '../utils';
+import { formatDate, fileToBase64 } from '../utils';
 import { PhotoGallery } from './PhotoGallery';
 
 interface TravelDetailProps {
@@ -33,20 +33,31 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
     }
   }, [newExpenseCurrency]);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      const newPhotoUrls = files.map(file => URL.createObjectURL(file as Blob));
-      const updatedPhotos = [...record.photos, ...newPhotoUrls];
-      onUpdate({ ...record, photos: updatedPhotos });
+      // Convert to Base64 to sync across devices
+      const base64Promises = files.map(file => fileToBase64(file));
+      try {
+        const newPhotoBase64s = await Promise.all(base64Promises);
+        const updatedPhotos = [...record.photos, ...newPhotoBase64s];
+        onUpdate({ ...record, photos: updatedPhotos });
+      } catch (error) {
+        console.error("Failed to upload photos", error);
+        alert("照片上傳失敗");
+      }
     }
   };
 
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const newCoverUrl = URL.createObjectURL(file);
-      onUpdate({ ...record, coverImage: newCoverUrl });
+      try {
+        const file = e.target.files[0];
+        const newCoverBase64 = await fileToBase64(file);
+        onUpdate({ ...record, coverImage: newCoverBase64 });
+      } catch (error) {
+        console.error("Failed to set cover", error);
+      }
     }
   };
 
