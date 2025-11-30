@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3, MessageCircle, Send, PieChart, Pencil } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3, MessageCircle, Send, PieChart, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, ItineraryItem, GeneralThought, ExpenseCategory, EXPENSE_CATEGORIES } from '../types';
 import { formatDate, compressImage } from '../utils';
-import { PhotoGallery } from './PhotoGallery';
 import { db } from '../firebaseConfig';
 import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 
@@ -38,6 +37,9 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   const [cloudPhotos, setCloudPhotos] = useState<PhotoDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+
+  // Lightbox State
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Fetch photos from 'travel_photos' collection
   useEffect(() => {
@@ -199,6 +201,24 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
       return record.coverImage === photoUrl;
     }
     return index === 0;
+  };
+
+  // Lightbox Handlers
+  const openLightbox = (index: number) => setLightboxIndex(index);
+  const closeLightbox = () => setLightboxIndex(null);
+  
+  const showNextPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (lightboxIndex !== null) {
+      setLightboxIndex((prev) => (prev! + 1) % displayPhotos.length);
+    }
+  };
+
+  const showPrevPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (lightboxIndex !== null) {
+      setLightboxIndex((prev) => (prev! - 1 + displayPhotos.length) % displayPhotos.length);
+    }
   };
 
   // Itinerary Management Functions
@@ -885,12 +905,12 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
           {/* Photo Gallery Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
              {displayPhotos.map((photo, index) => (
-               <div key={index} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm bg-slate-100">
+               <div key={index} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm bg-slate-100 cursor-pointer">
                  <img 
                    src={photo} 
                    alt={`Memory ${index}`} 
                    className="w-full h-full object-cover transition duration-500 group-hover:scale-110"
-                   onClick={() => !isEditingPhotos && document.getElementById(`lightbox-${index}`)?.click()} 
+                   onClick={() => !isEditingPhotos && openLightbox(index)} 
                  />
                  
                  {/* Cover Indicator */}
@@ -930,11 +950,6 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                    <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={isUploading} />
                 </label>
              )}
-          </div>
-          
-          {/* Using the separate PhotoGallery component for lightbox functionality */}
-          <div className="hidden">
-             <PhotoGallery photos={displayPhotos} />
           </div>
         </div>
 
@@ -1052,6 +1067,53 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                 setEditingActivity(null);
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Lightbox */}
+      {lightboxIndex !== null && (
+        <div 
+          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"
+          onClick={closeLightbox}
+        >
+          {/* Close Button */}
+          <button 
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/20 hover:bg-white/20 transition z-50"
+          >
+            <X size={32} />
+          </button>
+
+          {/* Prev Button */}
+          <button 
+            onClick={showPrevPhoto}
+            className="absolute left-2 md:left-8 text-white/80 hover:text-white p-3 rounded-full bg-black/20 hover:bg-white/20 transition z-50"
+          >
+            <ChevronLeft size={32} />
+          </button>
+
+          {/* Image Container */}
+          <div className="relative w-full max-w-5xl h-full flex items-center justify-center">
+             <img 
+               src={displayPhotos[lightboxIndex]} 
+               alt="Full size memory" 
+               className="max-h-[85vh] max-w-full object-contain shadow-2xl rounded-sm select-none"
+               onClick={(e) => e.stopPropagation()}
+             />
+          </div>
+
+          {/* Next Button */}
+          <button 
+            onClick={showNextPhoto}
+            className="absolute right-2 md:right-8 text-white/80 hover:text-white p-3 rounded-full bg-black/20 hover:bg-white/20 transition z-50"
+          >
+            <ChevronRight size={32} />
+          </button>
+          
+          {/* Counter */}
+          <div className="absolute bottom-6 left-0 right-0 text-center text-white/60 text-sm font-medium tracking-widest select-none">
+            {lightboxIndex + 1} / {displayPhotos.length}
           </div>
         </div>
       )}
