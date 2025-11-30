@@ -1,5 +1,5 @@
 
-export type ActivityType = 'spot' | 'food' | 'other';
+export type ActivityType = 'spot' | 'food' | 'other' | 'regret';
 
 export interface Review {
   id: string;

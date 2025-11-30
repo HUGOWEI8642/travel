@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3, MessageCircle, Send, PieChart, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3, MessageCircle, Send, PieChart, Pencil, ChevronLeft, ChevronRight, Ghost } from 'lucide-react';
 import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, ItineraryItem, GeneralThought, ExpenseCategory, EXPENSE_CATEGORIES } from '../types';
 import { formatDate, compressImage } from '../utils';
 import { db } from '../firebaseConfig';
@@ -271,6 +271,12 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
     const newItinerary = [...record.itinerary];
     newItinerary[dayIndex].activities = newItinerary[dayIndex].activities.filter(a => a.id !== activityId);
     handleItineraryChange(newItinerary);
+  };
+  
+  const getNextType = (current: string) => {
+    if (current === 'spot') return 'food';
+    if (current === 'food') return 'regret';
+    return 'spot';
   };
 
   // Review & Rating Handlers
@@ -583,30 +589,37 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                      >
                        <div className="flex items-start justify-between">
                          <div className="flex items-start gap-3 w-full">
-                           <div className={`p-2 rounded-lg shrink-0 ${activity.type === 'food' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'}`}>
-                             {activity.type === 'food' ? <Utensils size={20} /> : <Camera size={20} />}
+                           <div className={`p-2 rounded-lg shrink-0 ${
+                             activity.type === 'regret' ? 'bg-purple-100 text-purple-600' :
+                             activity.type === 'food' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'
+                           }`}>
+                             {activity.type === 'regret' ? <Ghost size={20} /> : activity.type === 'food' ? <Utensils size={20} /> : <Camera size={20} />}
                            </div>
                            <div className="flex-1">
                              <h5 className="font-bold text-slate-800">{activity.title}</h5>
                              
-                             {/* Display Reviewers Summary */}
+                             {/* Display All Reviews */}
                              {activity.reviews.length > 0 && (
-                               <div className="flex flex-wrap gap-1 mt-1">
+                               <div className="mt-2 space-y-2">
                                  {activity.reviews.map(r => (
-                                   <div key={r.id} className="inline-flex items-center text-xs bg-slate-50 px-2 py-0.5 rounded text-slate-500">
-                                      <Star size={10} className="text-yellow-400 fill-yellow-400 mr-1"/>
-                                      {r.rating} 
-                                      <span className="mx-1 text-slate-300">|</span>
-                                      {r.reviewer}
+                                   <div key={r.id} className="text-xs text-slate-600 bg-slate-50 p-2 rounded-md border border-slate-100">
+                                      <div className="flex items-center justify-between mb-1">
+                                          <div className="flex items-center gap-1">
+                                            <span className="font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{r.reviewer}</span>
+                                            <span className="flex items-center text-yellow-500 font-bold">
+                                                {r.rating} <Star size={10} className="fill-current ml-0.5"/>
+                                            </span>
+                                          </div>
+                                      </div>
+                                      {r.comment && <div className="text-slate-600 pl-1 border-l-2 border-slate-200">"{r.comment}"</div>}
                                    </div>
                                  ))}
                                </div>
                              )}
-                             {/* Display first review comment preview if any */}
-                             {activity.reviews.length > 0 && activity.reviews[0].comment && (
-                                <p className="text-xs text-slate-400 mt-1 line-clamp-1 italic">
-                                  "{activity.reviews[0].comment}"
-                                </p>
+                             {activity.reviews.length === 0 && (
+                               <div className="mt-1 text-xs text-slate-400 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <Plus size={10} className="mr-1"/> 新增評價
+                               </div>
                              )}
                            </div>
                          </div>
@@ -621,10 +634,13 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                          <div key={activity.id} className="bg-slate-50 p-2 rounded-lg border border-teal-200 flex flex-col gap-2">
                             <div className="flex items-center gap-2">
                                <button 
-                                 onClick={() => handleUpdateActivity(dayIndex, activity.id, 'type', activity.type === 'spot' ? 'food' : 'spot')}
-                                 className={`p-1.5 rounded-md ${activity.type === 'food' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'}`}
+                                 onClick={() => handleUpdateActivity(dayIndex, activity.id, 'type', getNextType(activity.type))}
+                                 className={`p-1.5 rounded-md ${
+                                   activity.type === 'regret' ? 'bg-purple-100 text-purple-600' :
+                                   activity.type === 'food' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'
+                                 }`}
                                >
-                                 {activity.type === 'food' ? <Utensils size={16} /> : <Camera size={16} />}
+                                 {activity.type === 'regret' ? <Ghost size={16} /> : activity.type === 'food' ? <Utensils size={16} /> : <Camera size={16} />}
                                </button>
                                <input 
                                  type="text"
@@ -1062,6 +1078,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
 
             <ReviewForm 
               members={record.members}
+              existingReviews={record.itinerary[editingActivity.dayIndex].activities.find(a => a.id === editingActivity.activityId)?.reviews || []}
               onSave={(review) => {
                 handleSaveReview(editingActivity.dayIndex, editingActivity.activityId, review);
                 setEditingActivity(null);
@@ -1122,10 +1139,22 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
 };
 
 // Sub-component for Review Form
-const ReviewForm: React.FC<{ members: string[], onSave: (review: Review) => void }> = ({ members, onSave }) => {
+const ReviewForm: React.FC<{ members: string[], existingReviews: Review[], onSave: (review: Review) => void }> = ({ members, existingReviews, onSave }) => {
   const [reviewer, setReviewer] = useState(members[0] || 'Unknown');
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
+
+  // Auto-fill existing review data when switching reviewers
+  useEffect(() => {
+    const existingReview = existingReviews.find(r => r.reviewer === reviewer);
+    if (existingReview) {
+      setRating(existingReview.rating);
+      setComment(existingReview.comment);
+    } else {
+      setRating(5);
+      setComment('');
+    }
+  }, [reviewer, existingReviews]);
 
   const handleSubmit = () => {
     onSave({

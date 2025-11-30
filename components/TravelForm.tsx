@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Upload, Calendar, MapPin, UserPlus, Utensils, Camera, DollarSign, MessageCircle } from 'lucide-react';
+import { Plus, X, Upload, Calendar, MapPin, UserPlus, Utensils, Camera, DollarSign, MessageCircle, Ghost } from 'lucide-react';
 import { TravelRecord, DEFAULT_MEMBERS, ItineraryItem, ActivityType, Activity, Currency, Expense, GeneralThought, ExpenseCategory, EXPENSE_CATEGORIES } from '../types';
 import { generateDateRange, compressImage } from '../utils';
 import { db } from '../firebaseConfig';
@@ -573,7 +573,9 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
                     {dayItem.activities.map((activity) => (
                       <div key={activity.id} className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm">
                          <div className="flex items-center gap-2">
-                           {activity.type === 'food' ? (
+                           {activity.type === 'regret' ? (
+                             <span className="text-purple-500 bg-purple-50 p-1 rounded"><Ghost size={14}/></span>
+                           ) : activity.type === 'food' ? (
                              <span className="text-orange-500 bg-orange-50 p-1 rounded"><Utensils size={14}/></span>
                            ) : (
                              <span className="text-teal-500 bg-teal-50 p-1 rounded"><Camera size={14}/></span>
@@ -613,6 +615,15 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
                          title="美食"
                       >
                         <Utensils size={18} />
+                      </button>
+                      <div className="w-px bg-slate-200"></div>
+                      <button 
+                         type="button"
+                         onClick={() => handleTypeChange(idx, 'regret')}
+                         className={`px-3 py-2 transition ${(newActivityType[idx] === 'regret') ? 'bg-purple-50 text-purple-600' : 'text-slate-400 hover:bg-slate-50'}`}
+                         title="遺珠"
+                      >
+                        <Ghost size={18} />
                       </button>
                     </div>
                     
