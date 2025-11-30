@@ -185,7 +185,8 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
     setIsSubmitting(true);
 
     try {
-      const recordData: TravelRecord = {
+      // 1. Prepare raw data
+      const rawData: TravelRecord = {
         id: initialData?.id || '', 
         title,
         location,
@@ -194,15 +195,23 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
         endDate,
         members: selectedMembers,
         itinerary,
-        photos: photos, // Keep existing photos in array for backward compatibility
+        photos: photos, 
         coverImage: initialData?.coverImage, 
         expenses
       };
 
+      // 2. Sanitize data (Remove undefined fields to prevent Firestore errors)
+      // JSON.parse(JSON.stringify(...)) is a quick way to strip undefined values
+      // This is safe here because our TravelRecord only contains JSON-compatible types (strings, numbers, arrays, objects)
+      const sanitizedData = JSON.parse(JSON.stringify(rawData));
+
       // If creating new record, we need to create it first to get an ID for photos
       if (!initialData?.id) {
-         // Create the doc to get ID
-         const docRef = await addDoc(collection(db, 'travel_records'), { ...recordData, id: '' });
+         // Create the doc to get ID (Use sanitizedData excluding ID)
+         // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         const { id, ...dataToSave } = sanitizedData;
+         
+         const docRef = await addDoc(collection(db, 'travel_records'), dataToSave);
          
          // Now upload photos to collection
          if (newPhotoFiles.length > 0) {
@@ -218,21 +227,22 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
          onCancel(); // Return to list logic handled by parent listener
          return;
       } else {
-         // Existing record, just upload new photos if any
+         // Existing record
          if (newPhotoFiles.length > 0) {
             for (const base64 of newPhotoFiles) {
                 await addDoc(collection(db, 'travel_photos'), {
-                    recordId: recordData.id,
+                    recordId: rawData.id,
                     base64: base64,
                     createdAt: Date.now()
                 });
             }
          }
-         await onSubmit(recordData);
+         // Use sanitizedData
+         await onSubmit(sanitizedData);
       }
     } catch (error) {
         console.error("Error submitting", error);
-        alert("儲存失敗");
+        alert("儲存失敗: " + (error instanceof Error ? error.message : "未知錯誤"));
     } finally {
         setIsSubmitting(false);
     }
