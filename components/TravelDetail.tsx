@@ -62,6 +62,19 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   };
 
   const handleDeletePhoto = (indexToDelete: number) => {
+    // 1. Basic confirmation
+    if (!window.confirm("確定要刪除這張照片嗎？")) {
+      return;
+    }
+
+    // 2. Password protection
+    const password = window.prompt("請輸入管理密碼以確認刪除：");
+    if (password !== "0329") {
+      alert("密碼錯誤，取消刪除。");
+      return;
+    }
+
+    // 3. Perform deletion
     const updatedPhotos = record.photos.filter((_, index) => index !== indexToDelete);
     onUpdate({ ...record, photos: updatedPhotos });
   };
