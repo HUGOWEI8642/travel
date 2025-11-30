@@ -27,6 +27,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   // Photo Collection State
   const [cloudPhotos, setCloudPhotos] = useState<PhotoDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
 
   // Fetch photos from 'travel_photos' collection
   useEffect(() => {
@@ -62,33 +63,48 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
     if (e.target.files && e.target.files.length > 0) {
       setIsUploading(true);
       const files = Array.from(e.target.files);
+      let successCount = 0;
       
       try {
-        // Compress all images first
-        const base64Promises = files.map(file => compressImage(file));
-        const newPhotoBase64s = await Promise.all(base64Promises);
+        // SEQUENTIAL UPLOAD: Process one by one to avoid mobile memory crash
+        for (let i = 0; i < files.length; i++) {
+          setUploadProgress(`正在處理 ${i + 1} / ${files.length}...`);
+          
+          try {
+            // 1. Compress
+            const base64 = await compressImage(files[i]);
+            
+            // 2. Upload to separate document
+            await addDoc(collection(db, 'travel_photos'), {
+              recordId: record.id,
+              base64: base64,
+              createdAt: Date.now()
+            });
+            
+            successCount++;
+            
+            // If it's the very first photo ever, set as cover automatically
+            if (!record.coverImage && displayPhotos.length === 0 && successCount === 1) {
+               onUpdate({ ...record, coverImage: base64 });
+            }
 
-        // Upload each as a SEPARATE document to bypass 1MB limit per doc
-        const uploadPromises = newPhotoBase64s.map(base64 => 
-          addDoc(collection(db, 'travel_photos'), {
-            recordId: record.id,
-            base64: base64,
-            createdAt: Date.now()
-          })
-        );
-        
-        await Promise.all(uploadPromises);
-        
-        // If no cover image exists, use the first uploaded photo
-        if (!record.coverImage && displayPhotos.length === 0 && newPhotoBase64s.length > 0) {
-          onUpdate({ ...record, coverImage: newPhotoBase64s[0] });
+          } catch (itemError) {
+            console.error(`Failed to upload file ${i+1}`, itemError);
+            // Continue to next file even if one fails
+          }
         }
-
+        
+        if (successCount < files.length) {
+          alert(`完成，但有 ${files.length - successCount} 張照片上傳失敗。`);
+        }
       } catch (error) {
-        console.error("Failed to upload photos", error);
-        alert("照片上傳失敗，請檢查網路或檔案大小");
+        console.error("Critical upload error", error);
+        alert("照片上傳發生錯誤，請檢查網路連線");
       } finally {
         setIsUploading(false);
+        setUploadProgress('');
+        // Clear input value to allow re-uploading same files if needed
+        e.target.value = '';
       }
     }
   };
@@ -101,6 +117,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
         onUpdate({ ...record, coverImage: newCoverBase64 });
       } catch (error) {
         console.error("Failed to set cover", error);
+        alert("封面設定失敗");
       }
     }
   };
@@ -138,6 +155,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
 
   const handleSetCoverFromAlbum = (photoUrl: string) => {
     onUpdate({ ...record, coverImage: photoUrl });
+    setIsEditingPhotos(false);
   };
 
   const handleResetCover = () => {
@@ -550,7 +568,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
           {isEditingPhotos ? (
             <div className="animate-fade-in bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div className="flex items-center justify-between mb-3 text-sm text-slate-500">
-                 <span className="flex items-center">
+                 <span className="flex items-center flex-wrap gap-1">
                    <Settings size={14} className="mr-1" />
                    上傳新照片或選擇封面。
                    {isCustomCover && <span className="ml-1 text-teal-600">(目前使用自訂封面)</span>}
@@ -558,7 +576,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                  </span>
                  <label className={`bg-teal-600 text-white text-xs px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-teal-700 transition shadow ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                    <Upload size={14} className="mr-1"/> 
-                   {isUploading ? '上傳中...' : '新增照片'}
+                   {isUploading ? (uploadProgress || '處理中') : '新增照片'}
                    <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={isUploading}/>
                  </label>
               </div>
@@ -596,7 +614,8 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                 
                 <label className="aspect-square bg-white border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-teal-50 hover:border-teal-400 transition text-slate-400 hover:text-teal-600">
                   <Upload size={24} className="mb-2" />
-                  <span className="text-sm font-medium">{isUploading ? '處理中...' : '點擊上傳'}</span>
+                  <span className="text-sm font-medium">{isUploading ? '上傳中...' : '點擊上傳'}</span>
+                  {isUploading && <span className="text-xs text-teal-600 mt-1">{uploadProgress}</span>}
                   <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={isUploading} />
                 </label>
               </div>

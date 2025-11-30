@@ -28,7 +28,8 @@ export const formatDate = (dateStr: string): string => {
 
 // Convert File to Base64 string but COMPRESSED
 // Optimized for mobile uploads to Firestore separate collection
-export const compressImage = (file: File, maxWidth = 800, quality = 0.6): Promise<string> => {
+// Reduced quality to 0.5 to prevent Firestore 1MB limit issues on high-res mobile photos
+export const compressImage = (file: File, maxWidth = 800, quality = 0.5): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -54,8 +55,11 @@ export const compressImage = (file: File, maxWidth = 800, quality = 0.6): Promis
           return;
         }
 
+        // Draw image to canvas
         ctx.drawImage(img, 0, 0, width, height);
+        
         // Compress to JPEG with reduced quality
+        // This is the critical step for mobile stability
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         resolve(dataUrl);
       };

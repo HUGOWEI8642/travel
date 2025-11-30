@@ -30,6 +30,7 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
   const [expenses, setExpenses] = useState<Expense[]>(initialData?.expenses || []);
   const [isImporting, setIsImporting] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
 
   // Temporary state for adding a new activity
   const [newActivityInputs, setNewActivityInputs] = useState<Record<number, string>>({});
@@ -92,16 +93,22 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
+      setIsProcessingPhotos(true);
       const files = Array.from(e.target.files);
-      // Use compressImage to avoid 1MB Firestore limit
-      const base64Promises = files.map(file => compressImage(file));
-      try {
-        const newPhotoBase64s = await Promise.all(base64Promises);
-        setNewPhotoFiles([...newPhotoFiles, ...newPhotoBase64s]);
-      } catch (error) {
-        console.error("Error converting images", error);
-        alert("圖片處理失敗，請重試");
+      const processed: string[] = [];
+      
+      // Sequential processing
+      for (const file of files) {
+        try {
+          const base64 = await compressImage(file);
+          processed.push(base64);
+        } catch (error) {
+          console.error("Error converting image", error);
+        }
       }
+      
+      setNewPhotoFiles([...newPhotoFiles, ...processed]);
+      setIsProcessingPhotos(false);
     }
   };
 
@@ -197,83 +204,32 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
 
       // If creating new record, we need to create it first to get an ID for photos
       if (!initialData?.id) {
-         // App.tsx handles creation. But wait! If we have newPhotoFiles, we need to upload them to the collection
-         // Problem: We need the ID.
-         // Solution: We'll do a slightly custom logic here.
-         // Actually, let's let App.tsx handle the basic update/create.
-         // BUT App.tsx doesn't know about `newPhotoFiles`.
-         // So we will upload photos AFTER creating the record if we can get the ID.
-         // Since App.tsx's `handleSaveForm` is void, we'll modify the flow slightly.
-         // For now, simpler: Create record without photos, then upload photos to collection using the ID from the result.
-         // Since we can't easily change App.tsx signature here without breaking stuff, 
-         // we'll assume App.tsx's handleSaveForm returns void.
+         // Create the doc to get ID
+         const docRef = await addDoc(collection(db, 'travel_records'), { ...recordData, id: '' });
          
-         // WORKAROUND: We will add the record manually here if it's new, OR pass everything to App.tsx
-         // To make it robust: We will modify `onSubmit` to potentially be async.
-         // Actually, let's just create the doc here if it's new so we can upload photos.
-         
+         // Now upload photos to collection
          if (newPhotoFiles.length > 0) {
-             // We can't easily upload photos if we don't know the ID yet.
-             // Strategy: Add all new photos to the 'photos' array temporarily so they are saved in the main doc?
-             // No, that causes the size limit error.
-             
-             // Strategy: We will create the doc directly here if it's new? No, keeps logic in App.tsx
-             
-             // Best Strategy: Pass the photos to App.tsx?
-             // App.tsx expects TravelRecord.
-             // We can attach a temporary property? No types violation.
-             
-             // Okay, we will manually create the document reference here if it's new.
-             if (!recordData.id) {
-                 const docRef = await addDoc(collection(db, 'travel_records'), { ...recordData, id: '' }); // Add empty ID initially, firebase assigns one
-                 // Now upload photos
-                 const uploadPromises = newPhotoFiles.map(base64 => 
-                    addDoc(collection(db, 'travel_photos'), {
-                        recordId: docRef.id,
-                        base64: base64,
-                        createdAt: Date.now()
-                    })
-                 );
-                 await Promise.all(uploadPromises);
-                 
-                 // If no cover, update the doc with first photo
-                 if (newPhotoFiles.length > 0) {
-                     // We don't need to update doc again just for cover if we handled it in TravelDetail, 
-                     // but for list view consistency:
-                     // We can't easily update it here without importing updateDoc.
-                     // Let's rely on TravelDetail to set covers or just leave it blank for now.
-                 }
-                 
-                 // Call cancel to go back to list (since we manually created it)
-                 // We need to trigger a refresh in App.tsx... onSnapshot handles that!
-                 onCancel();
-                 return;
-             } else {
-                 // Editing existing record
-                 const uploadPromises = newPhotoFiles.map(base64 => 
-                    addDoc(collection(db, 'travel_photos'), {
-                        recordId: recordData.id,
-                        base64: base64,
-                        createdAt: Date.now()
-                    })
-                 );
-                 await Promise.all(uploadPromises);
-                 await onSubmit(recordData);
-             }
-         } else {
-             await onSubmit(recordData);
+            for (const base64 of newPhotoFiles) {
+              await addDoc(collection(db, 'travel_photos'), {
+                  recordId: docRef.id,
+                  base64: base64,
+                  createdAt: Date.now()
+              });
+            }
          }
+         
+         onCancel(); // Return to list logic handled by parent listener
+         return;
       } else {
          // Existing record, just upload new photos if any
          if (newPhotoFiles.length > 0) {
-             const uploadPromises = newPhotoFiles.map(base64 => 
-                addDoc(collection(db, 'travel_photos'), {
+            for (const base64 of newPhotoFiles) {
+                await addDoc(collection(db, 'travel_photos'), {
                     recordId: recordData.id,
                     base64: base64,
                     createdAt: Date.now()
-                })
-             );
-             await Promise.all(uploadPromises);
+                });
+            }
          }
          await onSubmit(recordData);
       }
@@ -294,7 +250,7 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
         </h2>
         <button 
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isProcessingPhotos}
           className="bg-teal-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md hover:bg-teal-700 transition disabled:bg-slate-300"
         >
           {isSubmitting ? '處理中...' : (initialData ? '更新' : '儲存')}
@@ -670,7 +626,8 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
             <label className="aspect-square bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-teal-400 transition">
               <Upload className="text-slate-400 mb-1" size={24} />
               <span className="text-xs text-slate-500">上傳照片</span>
-              <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+              {isProcessingPhotos && <span className="text-[10px] text-teal-600 mt-1">處理中...</span>}
+              <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={isProcessingPhotos} />
             </label>
           </div>
           <p className="text-xs text-slate-400 mt-1">* 系統將自動壓縮圖片，並支援無上限多張上傳</p>
