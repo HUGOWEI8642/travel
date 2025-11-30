@@ -5,7 +5,7 @@ import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, Itine
 import { formatDate, compressImage } from '../utils';
 import { PhotoGallery } from './PhotoGallery';
 import { db } from '../firebaseConfig';
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 
 interface TravelDetailProps {
   record: TravelRecord;
@@ -35,14 +35,22 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   // Fetch photos from 'travel_photos' collection
   useEffect(() => {
     if (!record.id) return;
+    
+    // REMOVED orderBy to prevent "Missing Index" errors on Firestore
+    // We will sort them on the client side instead
     const q = query(
       collection(db, 'travel_photos'), 
-      where('recordId', '==', record.id),
-      orderBy('createdAt', 'asc')
+      where('recordId', '==', record.id)
     );
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const photos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PhotoDocument));
+      // Client-side sort: Oldest first
+      photos.sort((a, b) => a.createdAt - b.createdAt);
       setCloudPhotos(photos);
+    }, (error) => {
+      console.error("Photo fetch error:", error);
+      // alert("照片載入失敗：請檢查網路或資料庫權限");
     });
     return () => unsubscribe();
   }, [record.id]);
@@ -99,18 +107,17 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
 
           } catch (itemError) {
             console.error(`Failed to upload file ${i+1}`, itemError);
-            // Continue to next file even if one fails
+            alert(`第 ${i+1} 張照片上傳失敗，可能是檔案損毀或網路不穩。`);
           }
         }
         
         if (successCount === 0) {
-           alert("上傳失敗。請確認照片格式，或嘗試單張上傳。");
-        } else if (successCount < files.length) {
-          alert(`完成，但有 ${files.length - successCount} 張照片上傳失敗。`);
-        }
+           // Alert only if total failure
+           // alert("上傳失敗。請確認照片格式，或嘗試單張上傳。");
+        } 
       } catch (error) {
         console.error("Critical upload error", error);
-        alert("照片上傳發生錯誤，請檢查網路連線");
+        alert("照片上傳發生嚴重錯誤，請檢查網路連線");
       } finally {
         setIsUploading(false);
         setUploadProgress('');
