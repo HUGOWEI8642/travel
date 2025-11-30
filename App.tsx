@@ -5,7 +5,7 @@ import { TravelList } from './components/TravelList';
 import { TravelDetail } from './components/TravelDetail';
 import { TravelRecord, ViewMode } from './types';
 import { db } from './firebaseConfig';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc } from 'firebase/firestore';
 
 // Detailed Data for the November Train Trip - CLEARED REVIEWS AND EXPENSES
 const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
@@ -122,13 +122,22 @@ const App: React.FC = () => {
     }
   }, [selectedRecord?.id]);
 
-  const handleCreate = async (newRecord: TravelRecord) => {
+  const handleSaveForm = async (recordData: TravelRecord) => {
     try {
-      const { id, ...recordData } = newRecord;
-      await addDoc(collection(db, 'travel_records'), recordData);
+      if (recordData.id) {
+        // Update existing
+        const docRef = doc(db, 'travel_records', recordData.id);
+        await updateDoc(docRef, { ...recordData });
+      } else {
+        // Create new
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id, ...data } = recordData;
+        await addDoc(collection(db, 'travel_records'), data);
+      }
       setViewMode('list');
+      setSelectedRecord(null);
     } catch (e) {
-      console.error("Error adding document: ", e);
+      console.error("Error saving document: ", e);
       alert("儲存失敗，請檢查網路連線");
     }
   };
@@ -136,6 +145,11 @@ const App: React.FC = () => {
   const handleSelect = (record: TravelRecord) => {
     setSelectedRecord(record);
     setViewMode('detail');
+  };
+
+  const handleEdit = (record: TravelRecord) => {
+    setSelectedRecord(record);
+    setViewMode('edit');
   };
 
   const handleUpdateRecord = async (updatedRecord: TravelRecord) => {
@@ -147,6 +161,33 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Error updating document: ", e);
       alert("更新失敗");
+    }
+  };
+
+  const handleDeleteRecord = async (id: string) => {
+    // Step 1: Basic confirmation
+    if (!window.confirm("確定要刪除這筆旅遊紀錄嗎？刪除後無法復原。")) {
+      return;
+    }
+
+    // Step 2: Password protection
+    const password = window.prompt("請輸入管理密碼以確認刪除：");
+    if (password !== "0329") {
+      alert("密碼錯誤，取消刪除。");
+      return;
+    }
+
+    // Step 3: Delete
+    try {
+      await deleteDoc(doc(db, 'travel_records', id));
+      if (selectedRecord?.id === id) {
+        setSelectedRecord(null);
+        setViewMode('list');
+      }
+      alert("刪除成功");
+    } catch (e) {
+      console.error("Error deleting document: ", e);
+      alert("刪除失敗");
     }
   };
 
@@ -177,6 +218,7 @@ const App: React.FC = () => {
         if (Array.isArray(parsedData)) {
           if (window.confirm('確定要將備份資料匯入雲端資料庫嗎？這將會逐筆新增至 Firebase。')) {
              for (const rec of parsedData) {
+               // eslint-disable-next-line @typescript-eslint/no-unused-vars
                const { id, ...data } = rec;
                await addDoc(collection(db, 'travel_records'), data);
              }
@@ -220,17 +262,26 @@ const App: React.FC = () => {
         <TravelList 
           records={records} 
           onSelect={handleSelect} 
-          onCreateNew={() => setViewMode('create')} 
+          onCreateNew={() => {
+            setSelectedRecord(null);
+            setViewMode('create');
+          }} 
+          onEdit={handleEdit}
           onExport={handleExportData}
           onImport={handleImportData}
           onReset={handleImportExampleTrip}
+          onDelete={handleDeleteRecord}
         />
       )}
 
-      {viewMode === 'create' && (
+      {(viewMode === 'create' || viewMode === 'edit') && (
         <TravelForm 
-          onSubmit={handleCreate} 
-          onCancel={() => setViewMode('list')} 
+          initialData={viewMode === 'edit' && selectedRecord ? selectedRecord : undefined}
+          onSubmit={handleSaveForm} 
+          onCancel={() => {
+            setSelectedRecord(null);
+            setViewMode('list');
+          }} 
         />
       )}
 

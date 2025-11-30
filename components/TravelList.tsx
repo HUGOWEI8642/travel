@@ -1,6 +1,6 @@
 
 import React, { useRef } from 'react';
-import { Plus, MapPin, Calendar, Users, Download, Upload, RefreshCw, Database } from 'lucide-react';
+import { Plus, MapPin, Calendar, Users, Download, Upload, RefreshCw, Database, Trash2, Edit } from 'lucide-react';
 import { TravelRecord } from '../types';
 import { formatDate } from '../utils';
 
@@ -8,18 +8,22 @@ interface TravelListProps {
   records: TravelRecord[];
   onSelect: (record: TravelRecord) => void;
   onCreateNew: () => void;
+  onEdit: (record: TravelRecord) => void;
   onExport: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onReset: () => void;
+  onDelete: (id: string) => void;
 }
 
 export const TravelList: React.FC<TravelListProps> = ({ 
   records, 
   onSelect, 
   onCreateNew,
+  onEdit,
   onExport,
   onImport,
-  onReset
+  onReset,
+  onDelete
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,7 +60,7 @@ export const TravelList: React.FC<TravelListProps> = ({
             <div 
               key={record.id} 
               onClick={() => onSelect(record)}
-              className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer active:scale-[0.99] duration-150"
+              className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer active:scale-[0.99] duration-150 relative group"
             >
               <div className="h-40 overflow-hidden relative">
                 <img 
@@ -64,10 +68,34 @@ export const TravelList: React.FC<TravelListProps> = ({
                   alt={record.title}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-3 right-3">
-                  <span className={`text-xs font-bold px-2 py-1 rounded-md shadow-sm ${record.isInternational ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                
+                {/* Badges and Actions Overlay */}
+                <div className="absolute top-3 right-3 flex gap-2">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-md shadow-sm backdrop-blur-sm ${record.isInternational ? 'bg-blue-100/90 text-blue-800' : 'bg-green-100/90 text-green-800'}`}>
                     {record.isInternational ? '國外' : '國內'}
                   </span>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(record);
+                    }}
+                    className="bg-white/90 hover:bg-teal-50 text-slate-600 p-1 rounded-md shadow-sm backdrop-blur-sm transition-colors"
+                    title="編輯行程"
+                  >
+                    <Edit size={16} />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(record.id);
+                    }}
+                    className="bg-red-500/90 hover:bg-red-600 text-white p-1 rounded-md shadow-sm backdrop-blur-sm transition-colors"
+                    title="刪除行程"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
               

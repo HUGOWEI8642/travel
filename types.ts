@@ -45,6 +45,6 @@ export interface TravelRecord {
   expenses: Expense[];
 }
 
-export type ViewMode = 'list' | 'create' | 'detail';
+export type ViewMode = 'list' | 'create' | 'detail' | 'edit';
 
 export const DEFAULT_MEMBERS = ['Hugo', '仁駿', 'Hiro'];
