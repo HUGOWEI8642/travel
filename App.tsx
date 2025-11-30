@@ -21,6 +21,7 @@ const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
     "https://images.unsplash.com/photo-1508248742801-71f98d407357?q=80&w=1000&auto=format&fit=crop"
   ],
   expenses: [],
+  generalThoughts: [],
   itinerary: [
     {
       date: "2025-11-19",

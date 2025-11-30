@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Upload, Calendar, MapPin, UserPlus, Utensils, Camera, DollarSign } from 'lucide-react';
-import { TravelRecord, DEFAULT_MEMBERS, ItineraryItem, ActivityType, Activity, Currency, Expense } from '../types';
+import { Plus, X, Upload, Calendar, MapPin, UserPlus, Utensils, Camera, DollarSign, MessageCircle } from 'lucide-react';
+import { TravelRecord, DEFAULT_MEMBERS, ItineraryItem, ActivityType, Activity, Currency, Expense, GeneralThought } from '../types';
 import { generateDateRange, compressImage } from '../utils';
 import { db } from '../firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
@@ -28,6 +28,8 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
   const [photos, setPhotos] = useState<string[]>(initialData?.photos || []); // Legacy photos or temporary container
   const [newPhotoFiles, setNewPhotoFiles] = useState<string[]>([]); // New photos to be uploaded to collection
   const [expenses, setExpenses] = useState<Expense[]>(initialData?.expenses || []);
+  const [generalThoughts, setGeneralThoughts] = useState<GeneralThought[]>(initialData?.generalThoughts || []);
+
   const [isImporting, setIsImporting] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
@@ -41,6 +43,10 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCurrency, setExpenseCurrency] = useState<Currency>('TWD');
   const [exchangeRate, setExchangeRate] = useState<string>('1');
+
+  // Temporary state for adding a new thought
+  const [newThoughtContent, setNewThoughtContent] = useState('');
+  const [newThoughtAuthor, setNewThoughtAuthor] = useState('');
 
   // Effect: Update itinerary days when dates change, but preserve existing data if overlapping
   useEffect(() => {
@@ -74,6 +80,13 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
       setExchangeRate('1');
     }
   }, [expenseCurrency]);
+
+  // Effect: Set default author for thoughts
+  useEffect(() => {
+    if (selectedMembers.length > 0 && !newThoughtAuthor) {
+      setNewThoughtAuthor(selectedMembers[0]);
+    }
+  }, [selectedMembers, newThoughtAuthor]);
 
   const handleAddMember = () => {
     if (newMemberName.trim() && !availableMembers.includes(newMemberName)) {
@@ -166,6 +179,23 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
     setExpenses(expenses.filter(e => e.id !== id));
   };
 
+  // Thoughts Management
+  const handleAddThought = () => {
+    if (!newThoughtContent.trim()) return;
+    const newThought: GeneralThought = {
+      id: Date.now().toString(),
+      author: newThoughtAuthor || 'Unknown',
+      content: newThoughtContent,
+      createdAt: Date.now()
+    };
+    setGeneralThoughts([...generalThoughts, newThought]);
+    setNewThoughtContent('');
+  };
+
+  const handleRemoveThought = (id: string) => {
+    setGeneralThoughts(generalThoughts.filter(t => t.id !== id));
+  };
+
   // Simulated Google Excel/Sheet Import
   const handleSimulatedImport = () => {
     const newItinerary = itinerary.map((item, i) => ({
@@ -197,7 +227,8 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
         itinerary,
         photos: photos, 
         coverImage: initialData?.coverImage, 
-        expenses
+        expenses,
+        generalThoughts
       };
 
       // 2. Sanitize data (Remove undefined fields to prevent Firestore errors)
@@ -639,6 +670,82 @@ export const TravelForm: React.FC<TravelFormProps> = ({ initialData, onSubmit, o
           </div>
           <p className="text-xs text-slate-400 mt-1">* 系統將自動壓縮圖片，並支援無上限多張上傳</p>
         </div>
+
+        {/* General Thoughts / Regrets Section */}
+        <div className="border-t pt-4">
+          <label className="block text-lg font-bold text-slate-800 mb-4 flex items-center">
+            <MessageCircle className="mr-2 text-teal-600" size={20} /> 旅遊心得/殘念
+          </label>
+          
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4">
+            <div className="space-y-3">
+               <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block">我是...</label>
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    {selectedMembers.map(member => (
+                      <button
+                        key={member}
+                        type="button"
+                        onClick={() => setNewThoughtAuthor(member)}
+                        className={`px-3 py-1.5 rounded-md text-sm transition font-medium border ${newThoughtAuthor === member ? 'bg-white text-teal-700 shadow border-teal-200 ring-1 ring-teal-100' : 'bg-slate-100 text-slate-500 border-transparent hover:bg-slate-200'}`}
+                      >
+                        {member}
+                      </button>
+                    ))}
+                    {selectedMembers.length === 0 && <span className="text-xs text-slate-400">請先選擇上方旅行成員</span>}
+                  </div>
+               </div>
+               
+               <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block">內容</label>
+                  <textarea 
+                    value={newThoughtContent}
+                    onChange={(e) => setNewThoughtContent(e.target.value)}
+                    placeholder="寫下這趟旅程的整體心得，或是有什麼遺憾/殘念..."
+                    className="w-full border-slate-300 rounded-lg text-sm border p-3 focus:ring-teal-500 min-h-[80px]"
+                  />
+               </div>
+
+               <div className="flex justify-end">
+                 <button 
+                   type="button"
+                   onClick={handleAddThought}
+                   disabled={!newThoughtContent || !newThoughtAuthor}
+                   className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                 >
+                   新增心得
+                 </button>
+               </div>
+            </div>
+
+            {/* Thoughts List */}
+            {generalThoughts.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {generalThoughts.map((thought) => (
+                  <div key={thought.id} className="bg-white p-3 rounded-lg border border-slate-200 relative">
+                    <div className="flex items-center gap-2 mb-2">
+                       <span className="bg-teal-100 text-teal-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                         {thought.author}
+                       </span>
+                       <span className="text-[10px] text-slate-400">
+                         {new Date(thought.createdAt).toLocaleDateString()}
+                       </span>
+                    </div>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{thought.content}</p>
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemoveThought(thought.id)} 
+                      className="absolute top-2 right-2 text-slate-300 hover:text-red-500 p-1"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
       </form>
     </div>
   );

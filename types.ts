@@ -31,6 +31,13 @@ export interface Expense {
   exchangeRate: number;
 }
 
+export interface GeneralThought {
+  id: string;
+  author: string;
+  content: string;
+  createdAt: number;
+}
+
 export interface TravelRecord {
   id: string;
   title: string;
@@ -43,6 +50,7 @@ export interface TravelRecord {
   photos: string[]; // Legacy: kept for backward compatibility or thumbnails
   coverImage?: string; // Specific cover image
   expenses: Expense[];
+  generalThoughts: GeneralThought[];
 }
 
 // New interface for separate photo storage

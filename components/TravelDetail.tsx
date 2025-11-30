@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3 } from 'lucide-react';
-import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, ItineraryItem } from '../types';
+import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2, ArrowUp, ArrowDown, Edit3, MessageCircle, Send } from 'lucide-react';
+import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument, ItineraryItem, GeneralThought } from '../types';
 import { formatDate, compressImage } from '../utils';
 import { PhotoGallery } from './PhotoGallery';
 import { db } from '../firebaseConfig';
@@ -26,6 +26,11 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
   const [newExpenseCurrency, setNewExpenseCurrency] = useState<Currency>('TWD');
   const [newExchangeRate, setNewExchangeRate] = useState('1');
+
+  // Thoughts Edit State
+  const [isEditingThoughts, setIsEditingThoughts] = useState(false);
+  const [newThoughtContent, setNewThoughtContent] = useState('');
+  const [newThoughtAuthor, setNewThoughtAuthor] = useState('');
 
   // Photo Collection State
   const [cloudPhotos, setCloudPhotos] = useState<PhotoDocument[]>([]);
@@ -69,6 +74,13 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
       setNewExchangeRate('1');
     }
   }, [newExpenseCurrency]);
+
+  // Auto-select first member for thought author if not set
+  useEffect(() => {
+    if (isEditingThoughts && record.members.length > 0 && !newThoughtAuthor) {
+      setNewThoughtAuthor(record.members[0]);
+    }
+  }, [isEditingThoughts, record.members, newThoughtAuthor]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -289,6 +301,26 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   const handleDeleteExpense = (id: string) => {
     const updatedExpenses = record.expenses.filter(e => e.id !== id);
     onUpdate({ ...record, expenses: updatedExpenses });
+  };
+
+  // General Thoughts Handlers
+  const handleAddThought = () => {
+    if (!newThoughtContent.trim()) return;
+    const newThought: GeneralThought = {
+      id: Date.now().toString(),
+      author: newThoughtAuthor || 'Unknown',
+      content: newThoughtContent,
+      createdAt: Date.now()
+    };
+    const updatedThoughts = [...(record.generalThoughts || []), newThought];
+    onUpdate({ ...record, generalThoughts: updatedThoughts });
+    setNewThoughtContent('');
+  };
+
+  const handleDeleteThought = (id: string) => {
+    if (!window.confirm("確定刪除這則心得？")) return;
+    const updatedThoughts = record.generalThoughts.filter(t => t.id !== id);
+    onUpdate({ ...record, generalThoughts: updatedThoughts });
   };
 
   // Calculate Total Expense
@@ -777,6 +809,100 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
             <PhotoGallery photos={displayPhotos} />
           )}
         </div>
+
+        {/* General Thoughts / Regrets Section */}
+        <div>
+           <div className="flex items-center justify-between mb-4">
+             <h2 className="text-xl font-bold text-slate-800 flex items-center">
+               <MessageCircle className="mr-2 text-teal-600" /> 旅遊心得/殘念
+             </h2>
+             <button 
+               onClick={() => setIsEditingThoughts(!isEditingThoughts)}
+               className={`text-sm font-medium px-3 py-1.5 rounded-full transition flex items-center shadow-sm ${
+                 isEditingThoughts 
+                 ? 'bg-teal-100 text-teal-800 hover:bg-teal-200' 
+                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+               }`}
+             >
+               {isEditingThoughts ? <Check size={16} className="mr-1"/> : <Edit3 size={16} className="mr-1"/>}
+               {isEditingThoughts ? '完成' : '編輯/新增'}
+             </button>
+           </div>
+           
+           <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+              {(!record.generalThoughts || record.generalThoughts.length === 0) && !isEditingThoughts && (
+                 <p className="text-center text-slate-400 text-sm py-4 italic">尚無心得分享</p>
+              )}
+
+              <div className="space-y-4">
+                 {record.generalThoughts?.map((thought) => (
+                    <div key={thought.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 relative">
+                       <div className="flex items-center gap-2 mb-2">
+                          <div className="bg-teal-100 text-teal-800 h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm">
+                             {thought.author.charAt(0)}
+                          </div>
+                          <span className="font-bold text-slate-700 text-sm">{thought.author}</span>
+                          <span className="text-[10px] text-slate-400 ml-auto">
+                             {new Date(thought.createdAt).toLocaleDateString()}
+                          </span>
+                       </div>
+                       <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap pl-10">
+                          {thought.content}
+                       </p>
+                       
+                       {isEditingThoughts && (
+                          <button 
+                             onClick={() => handleDeleteThought(thought.id)}
+                             className="absolute top-3 right-3 text-slate-300 hover:text-red-500 p-1 bg-white/50 rounded-full"
+                          >
+                             <Trash2 size={16} />
+                          </button>
+                       )}
+                    </div>
+                 ))}
+              </div>
+
+              {/* Add New Thought Form */}
+              {isEditingThoughts && (
+                 <div className="mt-6 pt-6 border-t border-slate-200 animate-fade-in">
+                    <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center">
+                       <Plus size={16} className="mr-1"/> 新增心得
+                    </h4>
+                    <div className="bg-white p-4 rounded-lg border border-teal-200 shadow-sm">
+                       <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
+                          {record.members.map(member => (
+                             <button
+                                key={member}
+                                onClick={() => setNewThoughtAuthor(member)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition border ${newThoughtAuthor === member ? 'bg-teal-600 text-white border-teal-600 shadow' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                             >
+                                {member}
+                             </button>
+                          ))}
+                       </div>
+                       
+                       <textarea
+                          value={newThoughtContent}
+                          onChange={(e) => setNewThoughtContent(e.target.value)}
+                          placeholder={`以 ${newThoughtAuthor || '成員'} 的身份分享心情...`}
+                          className="w-full border-slate-200 rounded-lg text-sm p-3 focus:ring-teal-500 focus:border-teal-500 min-h-[100px] mb-3 bg-slate-50"
+                       />
+                       
+                       <div className="flex justify-end">
+                          <button
+                             onClick={handleAddThought}
+                             disabled={!newThoughtContent || !newThoughtAuthor}
+                             className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-teal-700 disabled:bg-slate-300 disabled:shadow-none transition flex items-center"
+                          >
+                             <Send size={16} className="mr-1" /> 發佈
+                          </button>
+                       </div>
+                    </div>
+                 </div>
+              )}
+           </div>
+        </div>
+
       </div>
 
       {/* Review Modal */}
