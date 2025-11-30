@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, Upload, Calendar, MapPin, UserPlus, Utensils, Camera, DollarSign } from 'lucide-react';
 import { TravelRecord, DEFAULT_MEMBERS, ItineraryItem, ActivityType, Activity, Currency, Expense } from '../types';
-import { generateDateRange, fileToBase64 } from '../utils';
+import { generateDateRange, compressImage } from '../utils';
 
 interface TravelFormProps {
   onSubmit: (record: TravelRecord) => void;
@@ -79,8 +79,8 @@ export const TravelForm: React.FC<TravelFormProps> = ({ onSubmit, onCancel }) =>
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      // Convert all files to Base64
-      const base64Promises = files.map(file => fileToBase64(file));
+      // Use compressImage to avoid 1MB Firestore limit
+      const base64Promises = files.map(file => compressImage(file));
       try {
         const newPhotoBase64s = await Promise.all(base64Promises);
         setPhotos([...photos, ...newPhotoBase64s]);
@@ -150,8 +150,6 @@ export const TravelForm: React.FC<TravelFormProps> = ({ onSubmit, onCancel }) =>
 
   // Simulated Google Excel/Sheet Import
   const handleSimulatedImport = () => {
-    // In a real app, this would use Google Sheets API. 
-    // Here we just auto-fill some dummy data structure
     const newItinerary = itinerary.map((item, i) => ({
       ...item,
       activities: [
@@ -553,7 +551,7 @@ export const TravelForm: React.FC<TravelFormProps> = ({ onSubmit, onCancel }) =>
               <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
             </label>
           </div>
-          <p className="text-xs text-slate-400 mt-1">* 建議使用照片連結。若直接上傳，為了同步將會降低畫質。</p>
+          <p className="text-xs text-slate-400 mt-1">* 系統將自動壓縮圖片以加速手機上傳</p>
         </div>
       </form>
     </div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { TravelRecord, Activity, Review, Expense, Currency } from '../types';
-import { formatDate, fileToBase64 } from '../utils';
+import { formatDate, compressImage } from '../utils';
 import { PhotoGallery } from './PhotoGallery';
 
 interface TravelDetailProps {
@@ -36,8 +36,8 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      // Convert to Base64 to sync across devices
-      const base64Promises = files.map(file => fileToBase64(file));
+      // Use compressImage to avoid 1MB Firestore limit
+      const base64Promises = files.map(file => compressImage(file));
       try {
         const newPhotoBase64s = await Promise.all(base64Promises);
         const updatedPhotos = [...record.photos, ...newPhotoBase64s];
@@ -53,7 +53,7 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
     if (e.target.files && e.target.files[0]) {
       try {
         const file = e.target.files[0];
-        const newCoverBase64 = await fileToBase64(file);
+        const newCoverBase64 = await compressImage(file);
         onUpdate({ ...record, coverImage: newCoverBase64 });
       } catch (error) {
         console.error("Failed to set cover", error);

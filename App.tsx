@@ -7,7 +7,7 @@ import { TravelRecord, ViewMode } from './types';
 import { db } from './firebaseConfig';
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
-// Detailed Data for the November Train Trip
+// Detailed Data for the November Train Trip - CLEARED REVIEWS AND EXPENSES
 const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
   title: "11月火車環島快閃",
   location: "台灣-花蓮 台東 高雄 台南 嘉義",
@@ -16,23 +16,19 @@ const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
   endDate: "2025-11-23",
   members: ["Hugo", "仁駿", "Hiro"],
   photos: [
-    "https://images.unsplash.com/photo-1552993873-0dd1110e025f?q=80&w=1000&auto=format&fit=crop", // Train/Travel vibe
-    "https://images.unsplash.com/photo-1594396656731-9556a3df54f5?q=80&w=1000&auto=format&fit=crop", // Hualien
-    "https://images.unsplash.com/photo-1508248742801-71f98d407357?q=80&w=1000&auto=format&fit=crop"  // Food
+    "https://images.unsplash.com/photo-1552993873-0dd1110e025f?q=80&w=1000&auto=format&fit=crop", 
+    "https://images.unsplash.com/photo-1594396656731-9556a3df54f5?q=80&w=1000&auto=format&fit=crop", 
+    "https://images.unsplash.com/photo-1508248742801-71f98d407357?q=80&w=1000&auto=format&fit=crop"
   ],
-  expenses: [
-    { id: "e1", item: "花蓮住宿 (2晚)", amount: 4800, currency: 'TWD', exchangeRate: 1 },
-    { id: "e2", item: "台鐵周遊券", amount: 3600, currency: 'TWD', exchangeRate: 1 },
-    { id: "e3", item: "高雄住宿 (1晚)", amount: 2500, currency: 'TWD', exchangeRate: 1 },
-  ],
+  expenses: [], // Cleared as requested
   itinerary: [
     {
       date: "2025-11-19",
       activities: [
         { id: "d1-1", type: "spot", title: "花蓮 - 慶修院", reviews: [] },
-        { id: "d1-2", type: "spot", title: "花蓮 - 鯉魚潭", reviews: [{ id: "r1", reviewer: "Hugo", rating: 5, comment: "湖光山色，非常放鬆的地方！" }] },
+        { id: "d1-2", type: "spot", title: "花蓮 - 鯉魚潭", reviews: [] },
         { id: "d1-3", type: "food", title: "花蓮 - 依蓮小吃", reviews: [] },
-        { id: "d1-4", type: "food", title: "花蓮 - 厚點甜", reviews: [{ id: "r2", reviewer: "Hiro", rating: 4, comment: "甜點很有水準。" }] },
+        { id: "d1-4", type: "food", title: "花蓮 - 厚點甜", reviews: [] },
         { id: "d1-5", type: "spot", title: "花蓮 - 將軍府1936", reviews: [] },
         { id: "d1-6", type: "food", title: "花蓮 - 東大門夜市", reviews: [] }
       ]
@@ -42,7 +38,7 @@ const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
       activities: [
         { id: "d2-1", type: "spot", title: "花蓮 - 楓林步道", reviews: [] },
         { id: "d2-2", type: "food", title: "台東 - 柴米Daily Kitchen", reviews: [] },
-        { id: "d2-3", type: "spot", title: "台東 - 台東海濱公園", reviews: [{ id: "r3", reviewer: "仁駿", rating: 5, comment: "國際地標拍起來很美。" }] },
+        { id: "d2-3", type: "spot", title: "台東 - 台東海濱公園", reviews: [] },
         { id: "d2-4", type: "food", title: "台東 - 海特咖啡", reviews: [] },
         { id: "d2-5", type: "spot", title: "台東 - 鐵花村", reviews: [] },
         { id: "d2-6", type: "food", title: "台東 - 榕樹下米苔目", reviews: [] },
@@ -54,7 +50,7 @@ const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
       activities: [
         { id: "d3-1", type: "food", title: "高雄 - 麵店（待確認）", reviews: [] },
         { id: "d3-2", type: "spot", title: "高雄 - 衛武營都會公園", reviews: [] },
-        { id: "d3-3", type: "spot", title: "高雄 - 高雄港區(Twice應援）", reviews: [{ id: "r4", reviewer: "Hiro", rating: 5, comment: "ONCE 集合！" }] },
+        { id: "d3-3", type: "spot", title: "高雄 - 高雄港區(Twice應援）", reviews: [] },
         { id: "d3-4", type: "food", title: "高雄 - 老江紅茶牛奶", reviews: [] },
         { id: "d3-5", type: "food", title: "高雄 - 鍾家綠豆湯大王", reviews: [] }
       ]
@@ -76,7 +72,7 @@ const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
     {
       date: "2025-11-23",
       activities: [
-        { id: "d5-1", type: "food", title: "台南 - 西羅殿牛肉湯", reviews: [{ id: "r5", reviewer: "Hugo", rating: 5, comment: "湯頭鮮甜，肉質嫩！" }] },
+        { id: "d5-1", type: "food", title: "台南 - 西羅殿牛肉湯", reviews: [] },
         { id: "d5-2", type: "food", title: "台南 - 一味品碗粿", reviews: [] },
         { id: "d5-3", type: "food", title: "台南 - 木匠手烘咖啡", reviews: [] },
         { id: "d5-4", type: "spot", title: "台南 - 水仙宮", reviews: [] },
@@ -196,10 +192,10 @@ const App: React.FC = () => {
   };
 
   const handleImportExampleTrip = async () => {
-    if (window.confirm("確定要將「11月火車環島快閃」範例行程加入到您的雲端資料庫嗎？")) {
+    if (window.confirm("確定要將「11月火車環島快閃」範例行程加入到您的雲端資料庫嗎？(將匯入空白評論與支出版本)")) {
       try {
         await addDoc(collection(db, 'travel_records'), NOVEMBER_TRIP);
-        alert("匯入成功！您現在可以在列表中看到該行程。");
+        alert("匯入成功！");
       } catch (e) {
         console.error("Error adding example doc: ", e);
         alert("匯入失敗，請檢查 Firebase 設定或網路連線。");
