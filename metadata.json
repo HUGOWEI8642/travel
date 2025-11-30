@@ -1,0 +1,7 @@
+{
+  "name": "TravelLog - Your Personal Journey",
+  "description": "A mobile-first travel journal to record memories, itineraries, and photos.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
