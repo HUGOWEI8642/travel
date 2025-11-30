@@ -1,7 +1,7 @@
 
-import React, { useRef } from 'react';
-import { Plus, MapPin, Calendar, Users, Download, Upload, RefreshCw, Database, Trash2, Edit } from 'lucide-react';
-import { TravelRecord } from '../types';
+import React, { useRef, useState } from 'react';
+import { Plus, MapPin, Calendar, Users, Download, Upload, RefreshCw, Database, Trash2, Edit, ChevronDown, ChevronUp, Save, X } from 'lucide-react';
+import { TravelRecord, AppSettings } from '../types';
 import { formatDate } from '../utils';
 
 interface TravelListProps {
@@ -13,6 +13,8 @@ interface TravelListProps {
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onReset: () => void;
   onDelete: (id: string) => void;
+  appSettings: AppSettings;
+  onUpdateAppSettings: (settings: AppSettings) => void;
 }
 
 export const TravelList: React.FC<TravelListProps> = ({ 
@@ -23,28 +25,78 @@ export const TravelList: React.FC<TravelListProps> = ({
   onExport,
   onImport,
   onReset,
-  onDelete
+  onDelete,
+  appSettings,
+  onUpdateAppSettings
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
+  // Header editing state
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [tempTitle, setTempTitle] = useState(appSettings.title);
+  const [tempSubtitle, setTempSubtitle] = useState(appSettings.subtitle);
+
+  const handleSaveHeader = () => {
+    onUpdateAppSettings({ title: tempTitle, subtitle: tempSubtitle });
+    setIsEditingHeader(false);
+  };
+
+  const handleCancelHeader = () => {
+    setTempTitle(appSettings.title);
+    setTempSubtitle(appSettings.subtitle);
+    setIsEditingHeader(false);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
       {/* Header */}
-      <div className="bg-white px-6 py-6 shadow-sm border-b sticky top-0 z-10">
-        <div className="flex justify-between items-center mb-1">
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-            <span className="text-3xl">👨‍🤝‍👨🐕</span>
-            我們的旅遊記錄
-          </h1>
+      <div className="bg-white px-6 py-6 shadow-sm border-b sticky top-0 z-10 transition-all">
+        <div className="flex justify-between items-start mb-1">
+          <div className="flex-1">
+             {isEditingHeader ? (
+               <div className="space-y-2 mb-2">
+                 <input 
+                   type="text" 
+                   value={tempTitle}
+                   onChange={(e) => setTempTitle(e.target.value)}
+                   className="w-full text-2xl font-extrabold text-slate-800 border-b border-teal-500 focus:outline-none"
+                   placeholder="輸入主標題"
+                 />
+                 <input 
+                   type="text" 
+                   value={tempSubtitle}
+                   onChange={(e) => setTempSubtitle(e.target.value)}
+                   className="w-full text-sm text-slate-500 border-b border-teal-300 focus:outline-none"
+                   placeholder="輸入副標題"
+                 />
+                 <div className="flex gap-2 mt-2">
+                   <button onClick={handleSaveHeader} className="bg-teal-600 text-white p-1 rounded hover:bg-teal-700"><Save size={16}/></button>
+                   <button onClick={handleCancelHeader} className="bg-slate-200 text-slate-600 p-1 rounded hover:bg-slate-300"><X size={16}/></button>
+                 </div>
+               </div>
+             ) : (
+               <>
+                 <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                    <span className="text-3xl">👨‍🤝‍👨🐕</span>
+                    {appSettings.title}
+                    <button onClick={() => setIsEditingHeader(true)} className="text-slate-300 hover:text-slate-500 transition ml-2">
+                      <Edit size={16} />
+                    </button>
+                 </h1>
+                 <p className="text-slate-500 text-sm mt-1">{appSettings.subtitle}</p>
+               </>
+             )}
+          </div>
+
           <button 
             onClick={onCreateNew}
-            className="bg-teal-600 text-white p-2 rounded-full shadow-lg hover:bg-teal-700 transition-colors"
+            className="bg-teal-600 text-white p-2 rounded-full shadow-lg hover:bg-teal-700 transition-colors ml-4 shrink-0"
             aria-label="Add Trip"
           >
             <Plus size={24} />
           </button>
         </div>
-        <p className="text-slate-500 text-sm">記錄每一個感動的瞬間</p>
       </div>
 
       {/* List */}
@@ -67,6 +119,9 @@ export const TravelList: React.FC<TravelListProps> = ({
                   src={record.coverImage || record.photos[0] || 'https://picsum.photos/600/300'} 
                   alt={record.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                     (e.target as HTMLImageElement).src = 'https://picsum.photos/600/300';
+                  }}
                 />
                 
                 {/* Badges and Actions Overlay */}
@@ -122,46 +177,55 @@ export const TravelList: React.FC<TravelListProps> = ({
         )}
       </div>
 
-      {/* Data Management Section */}
+      {/* Collapsible Data Management Section */}
       <div className="mx-4 mt-8 mb-4 border-t border-slate-200 pt-6">
-        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
-          <Database size={14} className="mr-1" /> 設定與資料
-        </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button 
-            onClick={onExport}
-            className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition"
-          >
-            <Download size={16} />
-            匯出備份
-          </button>
-          
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition"
-          >
-            <Upload size={16} />
-            匯入資料
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              onChange={onImport}
-              accept=".json"
-              className="hidden"
-            />
-          </button>
-          
-          <button 
-            onClick={onReset}
-            className="col-span-2 flex items-center justify-center gap-2 bg-slate-100 text-slate-400 py-2 rounded-xl text-xs hover:bg-teal-50 hover:text-teal-600 transition mt-2 font-bold"
-          >
-            <RefreshCw size={12} />
-            匯入範例行程 (11月環島)
-          </button>
-        </div>
-        <p className="text-center text-xs text-slate-300 mt-4">
-          資料將同步至雲端 Firebase
-        </p>
+        <button 
+          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+          className="w-full flex items-center justify-between text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-600 transition"
+        >
+          <span className="flex items-center"><Database size={14} className="mr-1" /> 設定與資料</span>
+          {isSettingsOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+        </button>
+        
+        {isSettingsOpen && (
+          <div className="animate-fade-in">
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={onExport}
+                className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition"
+              >
+                <Download size={16} />
+                匯出備份
+              </button>
+              
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition"
+              >
+                <Upload size={16} />
+                匯入資料
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={onImport}
+                  accept=".json"
+                  className="hidden"
+                />
+              </button>
+              
+              <button 
+                onClick={onReset}
+                className="col-span-2 flex items-center justify-center gap-2 bg-slate-100 text-slate-400 py-2 rounded-xl text-xs hover:bg-teal-50 hover:text-teal-600 transition mt-2 font-bold"
+              >
+                <RefreshCw size={12} />
+                匯入範例行程 (11月環島)
+              </button>
+            </div>
+            <p className="text-center text-xs text-slate-300 mt-4">
+              資料將同步至雲端 Firebase
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

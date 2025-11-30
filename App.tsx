@@ -3,9 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { TravelForm } from './components/TravelForm';
 import { TravelList } from './components/TravelList';
 import { TravelDetail } from './components/TravelDetail';
-import { TravelRecord, ViewMode } from './types';
+import { TravelRecord, ViewMode, AppSettings } from './types';
 import { db } from './firebaseConfig';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, setDoc, where, getDocs } from 'firebase/firestore';
 
 // Detailed Data for the November Train Trip - CLEARED REVIEWS AND EXPENSES
 const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
@@ -20,7 +20,7 @@ const NOVEMBER_TRIP: Omit<TravelRecord, 'id'> = {
     "https://images.unsplash.com/photo-1594396656731-9556a3df54f5?q=80&w=1000&auto=format&fit=crop", 
     "https://images.unsplash.com/photo-1508248742801-71f98d407357?q=80&w=1000&auto=format&fit=crop"
   ],
-  expenses: [], // Cleared as requested
+  expenses: [],
   itinerary: [
     {
       date: "2025-11-19",
@@ -90,8 +90,9 @@ const App: React.FC = () => {
   const [records, setRecords] = useState<TravelRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TravelRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [appSettings, setAppSettings] = useState<AppSettings>({ title: "我們的旅遊記錄", subtitle: "紀錄每一個感動的瞬間" });
 
-  // Real-time listener for Firestore
+  // 1. Real-time listener for Travel Records
   useEffect(() => {
     try {
       const q = query(collection(db, 'travel_records'), orderBy('startDate', 'desc'));
@@ -103,7 +104,6 @@ const App: React.FC = () => {
         setRecords(fetchedRecords);
         setLoading(false);
         
-        // If we are currently viewing a record, update it in real-time too
         if (selectedRecord) {
           const updatedSelected = fetchedRecords.find(r => r.id === selectedRecord.id);
           if (updatedSelected) {
@@ -122,6 +122,33 @@ const App: React.FC = () => {
     }
   }, [selectedRecord?.id]);
 
+  // 2. Real-time listener for App Settings
+  useEffect(() => {
+    try {
+      const settingsDocRef = doc(db, 'app_settings', 'header');
+      const unsubscribe = onSnapshot(settingsDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setAppSettings(docSnap.data() as AppSettings);
+        } else {
+          // Initialize if missing
+          setDoc(settingsDocRef, { title: "我們的旅遊記錄", subtitle: "紀錄每一個感動的瞬間" });
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error("Settings listener error", e);
+    }
+  }, []);
+
+  const handleUpdateAppSettings = async (newSettings: AppSettings) => {
+    try {
+      await setDoc(doc(db, 'app_settings', 'header'), newSettings);
+    } catch (e) {
+      console.error("Failed to update settings", e);
+      alert("標題更新失敗");
+    }
+  };
+
   const handleSaveForm = async (recordData: TravelRecord) => {
     try {
       if (recordData.id) {
@@ -132,7 +159,13 @@ const App: React.FC = () => {
         // Create new
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id, ...data } = recordData;
-        await addDoc(collection(db, 'travel_records'), data);
+        const docRef = await addDoc(collection(db, 'travel_records'), data);
+        
+        // If the form helper temporarily stored photos in 'photos' array,
+        // we might want to move them to the collection now to ensure consistency,
+        // but TravelForm handles this by uploading to collection if ID exists, 
+        // or passing them here. 
+        // NOTE: For simplicity, TravelForm below handles separate uploads.
       }
       setViewMode('list');
       setSelectedRecord(null);
@@ -165,21 +198,24 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecord = async (id: string) => {
-    // Step 1: Basic confirmation
-    if (!window.confirm("確定要刪除這筆旅遊紀錄嗎？刪除後無法復原。")) {
-      return;
-    }
+    if (!window.confirm("確定要刪除這筆旅遊紀錄嗎？刪除後無法復原。")) return;
 
-    // Step 2: Password protection
     const password = window.prompt("請輸入管理密碼以確認刪除：");
     if (password !== "0329") {
       alert("密碼錯誤，取消刪除。");
       return;
     }
 
-    // Step 3: Delete
     try {
+      // 1. Delete the record
       await deleteDoc(doc(db, 'travel_records', id));
+
+      // 2. Delete associated photos in 'travel_photos' collection
+      const photosQuery = query(collection(db, 'travel_photos'), where('recordId', '==', id));
+      const photosSnapshot = await getDocs(photosQuery);
+      const deletePromises = photosSnapshot.docs.map(photoDoc => deleteDoc(photoDoc.ref));
+      await Promise.all(deletePromises);
+
       if (selectedRecord?.id === id) {
         setSelectedRecord(null);
         setViewMode('list');
@@ -271,6 +307,8 @@ const App: React.FC = () => {
           onImport={handleImportData}
           onReset={handleImportExampleTrip}
           onDelete={handleDeleteRecord}
+          appSettings={appSettings}
+          onUpdateAppSettings={handleUpdateAppSettings}
         />
       )}
 

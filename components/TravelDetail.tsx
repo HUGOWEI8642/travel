@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Calendar, Users, Plane, Train, Camera, X, Upload, Check, Image as ImageIcon, Settings, RefreshCcw, Utensils, Star, MessageSquare, User, DollarSign, Plus, Trash2 } from 'lucide-react';
-import { TravelRecord, Activity, Review, Expense, Currency } from '../types';
+import { TravelRecord, Activity, Review, Expense, Currency, PhotoDocument } from '../types';
 import { formatDate, compressImage } from '../utils';
 import { PhotoGallery } from './PhotoGallery';
+import { db } from '../firebaseConfig';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, orderBy } from 'firebase/firestore';
 
 interface TravelDetailProps {
   record: TravelRecord;
@@ -22,8 +24,31 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   const [newExpenseCurrency, setNewExpenseCurrency] = useState<Currency>('TWD');
   const [newExchangeRate, setNewExchangeRate] = useState('1');
 
+  // Photo Collection State
+  const [cloudPhotos, setCloudPhotos] = useState<PhotoDocument[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Fetch photos from 'travel_photos' collection
+  useEffect(() => {
+    if (!record.id) return;
+    const q = query(
+      collection(db, 'travel_photos'), 
+      where('recordId', '==', record.id),
+      orderBy('createdAt', 'asc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const photos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PhotoDocument));
+      setCloudPhotos(photos);
+    });
+    return () => unsubscribe();
+  }, [record.id]);
+
+  // Combine legacy photos (in array) with cloud photos
+  const legacyPhotos = record.photos || [];
+  const displayPhotos = [...legacyPhotos, ...cloudPhotos.map(p => p.base64)];
+
   // Determine current cover source
-  const displayCover = record.coverImage || record.photos[0];
+  const displayCover = record.coverImage || displayPhotos[0];
   const isCustomCover = !!record.coverImage;
 
   // Reset exchange rate if currency is TWD
@@ -34,17 +59,36 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   }, [newExpenseCurrency]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    if (e.target.files && e.target.files.length > 0) {
+      setIsUploading(true);
       const files = Array.from(e.target.files);
-      // Use compressImage to avoid 1MB Firestore limit
-      const base64Promises = files.map(file => compressImage(file));
+      
       try {
+        // Compress all images first
+        const base64Promises = files.map(file => compressImage(file));
         const newPhotoBase64s = await Promise.all(base64Promises);
-        const updatedPhotos = [...record.photos, ...newPhotoBase64s];
-        onUpdate({ ...record, photos: updatedPhotos });
+
+        // Upload each as a SEPARATE document to bypass 1MB limit per doc
+        const uploadPromises = newPhotoBase64s.map(base64 => 
+          addDoc(collection(db, 'travel_photos'), {
+            recordId: record.id,
+            base64: base64,
+            createdAt: Date.now()
+          })
+        );
+        
+        await Promise.all(uploadPromises);
+        
+        // If no cover image exists, use the first uploaded photo
+        if (!record.coverImage && displayPhotos.length === 0 && newPhotoBase64s.length > 0) {
+          onUpdate({ ...record, coverImage: newPhotoBase64s[0] });
+        }
+
       } catch (error) {
         console.error("Failed to upload photos", error);
-        alert("照片上傳失敗");
+        alert("照片上傳失敗，請檢查網路或檔案大小");
+      } finally {
+        setIsUploading(false);
       }
     }
   };
@@ -61,11 +105,9 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
     }
   };
 
-  const handleDeletePhoto = (indexToDelete: number) => {
+  const handleDeletePhoto = async (indexToDelete: number) => {
     // 1. Basic confirmation
-    if (!window.confirm("確定要刪除這張照片嗎？")) {
-      return;
-    }
+    if (!window.confirm("確定要刪除這張照片嗎？")) return;
 
     // 2. Password protection
     const password = window.prompt("請輸入管理密碼以確認刪除：");
@@ -74,9 +116,24 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
       return;
     }
 
-    // 3. Perform deletion
-    const updatedPhotos = record.photos.filter((_, index) => index !== indexToDelete);
-    onUpdate({ ...record, photos: updatedPhotos });
+    try {
+      // Determine if it's a legacy photo or cloud photo
+      if (indexToDelete < legacyPhotos.length) {
+        // It's a legacy photo inside the record array
+        const updatedPhotos = record.photos.filter((_, index) => index !== indexToDelete);
+        onUpdate({ ...record, photos: updatedPhotos });
+      } else {
+        // It's a cloud photo
+        const cloudIndex = indexToDelete - legacyPhotos.length;
+        const photoDoc = cloudPhotos[cloudIndex];
+        if (photoDoc) {
+          await deleteDoc(doc(db, 'travel_photos', photoDoc.id));
+        }
+      }
+    } catch (e) {
+      console.error("Delete photo error", e);
+      alert("刪除失敗");
+    }
   };
 
   const handleSetCoverFromAlbum = (photoUrl: string) => {
@@ -499,14 +556,15 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                    {isCustomCover && <span className="ml-1 text-teal-600">(目前使用自訂封面)</span>}
                    {!isCustomCover && <span className="ml-1 text-slate-400">(目前預設第一張為封面)</span>}
                  </span>
-                 <label className="bg-teal-600 text-white text-xs px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-teal-700 transition shadow">
-                   <Upload size={14} className="mr-1"/> 新增照片
-                   <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                 <label className={`bg-teal-600 text-white text-xs px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-teal-700 transition shadow ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                   <Upload size={14} className="mr-1"/> 
+                   {isUploading ? '上傳中...' : '新增照片'}
+                   <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={isUploading}/>
                  </label>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {record.photos.map((photo, index) => {
+                {displayPhotos.map((photo, index) => {
                    const isCover = isCurrentCover(photo, index);
                    return (
                     <div key={index} className={`aspect-square relative rounded-lg overflow-hidden group shadow-sm border bg-white ${isCover ? 'ring-4 ring-teal-500 border-transparent' : 'border-slate-200'}`}>
@@ -538,13 +596,13 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
                 
                 <label className="aspect-square bg-white border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-teal-50 hover:border-teal-400 transition text-slate-400 hover:text-teal-600">
                   <Upload size={24} className="mb-2" />
-                  <span className="text-sm font-medium">點擊上傳</span>
-                  <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                  <span className="text-sm font-medium">{isUploading ? '處理中...' : '點擊上傳'}</span>
+                  <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={isUploading} />
                 </label>
               </div>
             </div>
           ) : (
-            <PhotoGallery photos={record.photos} />
+            <PhotoGallery photos={displayPhotos} />
           )}
         </div>
       </div>
@@ -565,23 +623,19 @@ export const TravelDetail: React.FC<TravelDetailProps> = ({ record, onBack, onUp
   );
 };
 
-// Sub-component for the Review Modal
+// Sub-component for the Review Modal (No changes needed)
 const ReviewModal: React.FC<{
   activity: Activity;
   members: string[];
   onClose: () => void;
   onSave: (reviewData: Review) => void;
 }> = ({ activity, members, onClose, onSave }) => {
-  // Select the first member by default
   const [selectedReviewer, setSelectedReviewer] = useState<string>(members[0] || 'Unknown');
-  
-  // Find existing review for the selected person
   const existingReview = activity.reviews.find(r => r.reviewer === selectedReviewer);
 
   const [rating, setRating] = useState<number>(0);
   const [comment, setComment] = useState<string>('');
 
-  // Update form when switching selected reviewer
   useEffect(() => {
     if (existingReview) {
       setRating(existingReview.rating);

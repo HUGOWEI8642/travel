@@ -40,9 +40,22 @@ export interface TravelRecord {
   endDate: string;
   members: string[];
   itinerary: ItineraryItem[];
-  photos: string[]; // Array of image URLs or base64 strings
-  coverImage?: string; // Optional: specific cover image. If undefined, defaults to photos[0]
+  photos: string[]; // Legacy: kept for backward compatibility or thumbnails
+  coverImage?: string; // Specific cover image
   expenses: Expense[];
+}
+
+// New interface for separate photo storage
+export interface PhotoDocument {
+  id: string;
+  recordId: string;
+  base64: string;
+  createdAt: number;
+}
+
+export interface AppSettings {
+  title: string;
+  subtitle: string;
 }
 
 export type ViewMode = 'list' | 'create' | 'detail' | 'edit';

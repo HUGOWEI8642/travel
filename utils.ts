@@ -27,9 +27,8 @@ export const formatDate = (dateStr: string): string => {
 };
 
 // Convert File to Base64 string but COMPRESSED
-// Firestore has a 1MB limit per document. Mobile photos are often 3-5MB.
-// We compress them to max width 800px and 0.7 quality.
-export const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<string> => {
+// Optimized for mobile uploads to Firestore separate collection
+export const compressImage = (file: File, maxWidth = 800, quality = 0.6): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -66,7 +65,6 @@ export const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promis
   });
 };
 
-// Keep original for backup or non-image files if needed
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
